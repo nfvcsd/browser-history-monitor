@@ -7,12 +7,14 @@ from sqlalchemy import String, cast, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..auth import require_admin_token
+from ..audit import AuditedRoute
 from ..db import get_db
 from ..models import Device, HistoryVisit, User
 from ..timezones import report_timezone
 from ..schemas import DomainOut, HistoryVisitOut, OverviewOut, UserOut, UserSummaryOut
 
 router = APIRouter(
+    route_class=AuditedRoute,
     prefix="/api/v1",
     tags=["admin"],
     dependencies=[Depends(require_admin_token)],

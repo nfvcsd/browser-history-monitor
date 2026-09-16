@@ -12,12 +12,14 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from ..auth import require_admin_token
+from ..audit import AuditedRoute
 from ..db import SessionLocal, get_db
 from ..models import Device, HistoryVisit, User
 from ..schemas import ReportOut
 from ..timezones import report_timezone
 
 router = APIRouter(
+    route_class=AuditedRoute,
     prefix="/api/v1/reports",
     tags=["reports"],
     dependencies=[Depends(require_admin_token)],

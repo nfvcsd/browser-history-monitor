@@ -117,3 +117,21 @@ class ReportOut(BaseModel):
     top_pages: list[ReportPageOut]
     daily: list[ReportDayOut]
     hourly: list[ReportHourOut]
+
+
+class AuditEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: datetime
+    actor_sub: str
+    actor_email: str | None
+    actor_mode: str
+    action: str
+    status_code: int
+    filters: dict[str, str | bool]
+    result_count: int | None
+
+
+class AuditPageOut(BaseModel):
+    items: list[AuditEventOut]
+    next_cursor: int | None

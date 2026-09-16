@@ -4,7 +4,7 @@ from typing import Annotated
 
 import requests
 from cachecontrol import CacheControl
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 from google.auth import exceptions as google_errors
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2 import id_token
@@ -41,6 +41,7 @@ def verify_google_token(token: str, client_id: str) -> dict:
 
 
 def require_admin_token(
+    request: Request,
     x_admin_token: Annotated[str | None, Header()] = None,
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict:
@@ -48,13 +49,16 @@ def require_admin_token(
     if settings.auth_mode == "development":
         if not _matches(x_admin_token, settings.dev_admin_token):
             raise HTTPException(401, "Invalid development administrator token")
-        return {
+        identity = {
             "mode": "development",
             "sub": "development-admin",
             "email": None,
             "name": "Development administrator",
             "expires_at": None,
         }
+
+        request.state.admin_identity = identity
+        return identity
 
     # Never fall back to development credentials when Google auth is selected.
     if not settings.google_auth_ready:
@@ -99,10 +103,13 @@ def require_admin_token(
         or not isinstance(claims.get("exp"), (int, float))
     ):
         raise HTTPException(401, "Invalid Google identity")
-    return {
+    identity = {
         "mode": "google",
         "sub": claims["sub"],
         "email": email.lower(),
         "name": claims.get("name") or email,
         "expires_at": claims["exp"],
     }
+
+    request.state.admin_identity = identity
+    return identity

@@ -1,6 +1,7 @@
 import type { AdminIdentity, AuthConfig } from "./AuthGate";
 
 import type {
+  AuditPage,
   DomainSummary,
   Report,
   HistoryVisit,
@@ -52,6 +53,8 @@ async function request<T>(
 }
 
 export const api = {
+  audit: (token: string, params: URLSearchParams) =>
+    request<AuditPage>("/api/v1/audit", token, params),
   authConfig: () => request<AuthConfig>("/api/v1/auth/config", ""),
   me: (token: string) => request<AdminIdentity>("/api/v1/auth/me", token),
   report: (token: string, params: URLSearchParams) =>

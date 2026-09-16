@@ -434,3 +434,10 @@ main a {
 .google-signin { margin: 20px 0; min-height: 44px; }
 .auth-retry { margin-top: 16px; }
 .signed-in-user { color: #bdd0d7; font-size: 12px; overflow-wrap: anywhere; }
+
+.audit-table td { vertical-align: top; min-width: 130px; overflow-wrap: anywhere; }
+.audit-table td:last-child { min-width: 220px; max-width: 420px; }
+.audit-table summary { cursor: pointer; color: #22627a; }
+.audit-details { font-size: 13px; }
+.audit-details dt { font-weight: 650; margin-top: 10px; }
+.audit-details dd { margin: 3px 0 8px; white-space: pre-wrap; }

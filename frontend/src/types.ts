@@ -52,8 +52,29 @@ export interface Report {
   users: number;
   devices: number;
   domains: number;
-  top_pages: { title: string | null; url: string; visit_count: number; unique_users: number }[];
+  top_pages: {
+    title: string | null;
+    url: string;
+    visit_count: number;
+    unique_users: number;
+  }[];
   top_domains: { domain: string; visit_count: number; unique_users: number }[];
   daily: { date: string; visits: number }[];
   hourly: { hour: number; visits: number }[];
+}
+
+export interface AuditEvent {
+  id: number;
+  created_at: string;
+  actor_sub: string;
+  actor_email: string | null;
+  actor_mode: string;
+  action: string;
+  status_code: number;
+  filters: Record<string, string | boolean>;
+  result_count: number | null;
+}
+export interface AuditPage {
+  items: AuditEvent[];
+  next_cursor: number | null;
 }

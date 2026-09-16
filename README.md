@@ -1,4 +1,4 @@
-# Browser History Monitor — Milestone 4
+# Browser History Monitor — Milestone 5
 
 This repository contains the centralized Chrome history system with routed
 Overview, Users, Domains and Reports pages:
@@ -23,7 +23,7 @@ Google mode and denies access until configured. A typo in `AUTH_MODE` prevents
 startup. Credentials from one mode cannot authenticate in the other.
 
 The extension still uses `DEV_EXTENSION_TOKEN` and reports an **unverified**
-profile email. Verified extension enrollment, audit logging, retention and
+profile email. Verified extension enrollment, retention and
 production deployment hardening remain future work.
 
 ## Start the server
@@ -87,6 +87,7 @@ The extension performs:
 - `GET /api/v1/history` — existing filters plus `exact_domain` for precise drill-downs
 - `GET /api/v1/reports` — report summaries and activity aggregations
 - `GET /api/v1/reports/export.csv` — streaming CSV of matching visits
+- `GET /api/v1/audit` — authenticated audit log with filters and cursor pagination
 
 Dashboard endpoints require the header for the selected mode:
 
@@ -146,7 +147,7 @@ add Alembic migrations.
 1. Additional investigator/auditor permission levels.
 2. Verified extension enrollment instead of a shared sync token.
 3. Roles: Administrator, Investigator, Auditor.
-4. Audit logging for history access/search/export.
+4. External audit-log archival and tamper detection.
 5. Configurable retention.
 6. Production Nginx configuration and HTTPS.
 7. Wire the included managed-extension policy schema into Chrome Enterprise deployment.
@@ -167,7 +168,9 @@ add Alembic migrations.
   matching history, retaining user and time filters. Subdomains remain separate.
 - **Reports** (`/reports`): local date-range summaries, optional user/domain filters,
   top 20 domains, visits by day/hour, and CSV export of matching visit rows.
-- **Audit Log and Settings** are disabled, clearly labeled placeholders.
+- **Audit Log** (`/audit`): authenticated administrator activity with administrator,
+  action and local date/time filters, request details and older-event pagination.
+- **Settings** is a disabled, clearly labeled placeholder.
 
 Filters and pagination live in the URL, supporting direct links, reload and
 browser Back/Forward. Vite serves nested routes during development. A future
@@ -214,8 +217,9 @@ python -m compileall -q app
 Tests cover independent user/device aggregation, empty users, last sync, domain
 counts and distinct users, first/last activity, exact versus partial-domain
 history, search and date filters, pagination, authentication and validation.
-No database migration is needed for this milestone; existing tables/indexes are
-used. Rebuild the Docker stack with `docker compose up --build -d` to run changes.
+The backend creates the new `audit_events` table and its indexes automatically
+on startup, using the existing table-creation mechanism. Existing tables and
+stored history are preserved. Rebuild the Docker stack with `docker compose up --build -d` to run changes.
 
 
 ## Reports
@@ -319,8 +323,8 @@ To add/remove administrators, edit `ADMIN_EMAILS` and recreate the backend with
 `docker compose up -d --force-recreate backend`. Authorization is checked on each
 API request; an already-open dashboard also revalidates on window focus and every
 five minutes. Domain or allowlist changes do not require code edits, frontend
-rebuilds or database migrations. Audit Log and Settings are still placeholders;
-there is no in-app administrator editor in this milestone.
+rebuilds or database migrations. Settings remains a placeholder; there is no
+in-app administrator editor in this milestone.
 
 The backend validates the signature, issuer, audience and expiry using Google's
 Python authentication library; it caches public signing certificates according
@@ -352,3 +356,51 @@ registered OAuth client; it cannot be validated with placeholder client settings
 
 Reference: [Google sign-in setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid),
 [server-side ID token verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token).
+
+
+## Audit log
+
+The backend records authenticated API access to Overview, user lists/details,
+domain summaries, history views/searches, reports, CSV exports and the audit log
+itself. It captures the verified Google subject/email (or the clearly labeled
+shared development identity), UTC timestamp, action, HTTP status, supported
+explicit filters and result count where available. No authentication headers,
+tokens, returned page titles, response bodies or browsing rows are copied into
+the audit log. Search text and target IDs **are** recorded as filters and may
+contain sensitive investigation context. Values over 4,096 characters are
+shortened and marked. Unknown query parameters are excluded.
+
+Records describe API requests, not proof that a person read the response. A page
+can produce several records for supporting requests such as user dropdowns;
+refreshes, retries and React development-mode requests can each create records.
+Successful responses are labeled Accepted. Authenticated validation/query errors
+are recorded with their HTTP status. Requests that fail authentication are not
+attributed to an administrator; anonymous login-attempt monitoring is outside
+this milestone. `/auth/me`, public auth configuration, health checks and extension
+sync are not included in this administrator-access log.
+
+`export.requested` is saved **before any CSV bytes are released**. It records an
+authorized export request, not completion, a saved file, a row count or receipt
+by a user. A later streaming error or disconnected browser does not turn it into
+a completed export event. Other result counts refer to rows returned, or matching
+visit counts for reports, and are not snapshots of the returned content.
+
+Audit writes use a separate database transaction. If a record cannot be saved,
+the API returns 503 rather than releasing unaudited data. The application exposes
+no audit edit/delete endpoints and records do not depend on monitored user/device
+foreign keys. This is append-only **through the application**, not a tamper-proof
+ledger: database owners can still modify the table. Audit retention and external
+archival remain future work. All currently allowlisted administrators may read
+this deployment's audit log.
+
+`GET /api/v1/audit` supports `actor` (email or subject substring), `action`,
+inclusive `start`/`end` timestamps, `before_id`, and `limit` (1–200, default 100).
+The UI converts browser-local time filters to UTC. The API returns `items` and
+`next_cursor`; pass that value as `before_id` to get older events. New inserts,
+including viewing the audit log itself, do not shift older-page boundaries.
+The current read event appears on a later refresh. Use Latest events to restart
+or browser Back to return to a previous page. Audit timestamps display locally.
+
+Tests cover authenticated identity, filter/credential separation, report/export
+recording, failed queries, database-write failure, access protection, local time
+filter conversion and pagination while new records are inserted.

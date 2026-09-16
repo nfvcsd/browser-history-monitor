@@ -10,6 +10,7 @@ import {
 } from "react-router-dom";
 import { api } from "./api";
 import ReportsPage from "./ReportsPage";
+import AuditLogPage from "./AuditLogPage";
 import AuthGate, { AdminIdentity } from "./AuthGate";
 import type { HistoryVisit } from "./types";
 
@@ -514,7 +515,8 @@ function Console({
           <NavLink to="/users">Users</NavLink>
           <NavLink to="/domains">Domains</NavLink>
           <NavLink to="/reports">Reports</NavLink>
-          {["Audit Log", "Settings"].map((label) => (
+          <NavLink to="/audit">Audit Log</NavLink>
+          {["Settings"].map((label) => (
             <button disabled key={label}>
               {label}
               <small>Not yet implemented</small>
@@ -547,6 +549,7 @@ function Console({
           <Route path="/users/:userId" element={<UserHistory {...props} />} />
           <Route path="/domains" element={<DomainsPage {...props} />} />
           <Route path="/reports" element={<ReportsPage {...props} />} />
+          <Route path="/audit" element={<AuditLogPage {...props} />} />
           <Route
             path="/domains/:domain"
             element={<DomainHistory {...props} />}

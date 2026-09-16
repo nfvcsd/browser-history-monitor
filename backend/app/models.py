@@ -13,7 +13,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -105,3 +105,21 @@ class HistoryVisit(Base):
     )
 
     device: Mapped["Device"] = relationship(back_populates="visits")
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        Index("ix_audit_actor_time", "actor_email", "created_at"),
+        Index("ix_audit_action_time", "action", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    actor_sub: Mapped[str] = mapped_column(String(255))
+    actor_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    actor_mode: Mapped[str] = mapped_column(String(20))
+    action: Mapped[str] = mapped_column(String(64))
+    status_code: Mapped[int] = mapped_column(Integer)
+    filters: Mapped[dict] = mapped_column(JSONB)
+    result_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
