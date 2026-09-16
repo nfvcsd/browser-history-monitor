@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
@@ -80,3 +80,32 @@ class DomainOut(BaseModel):
     unique_users: int
     first_activity: datetime
     last_activity: datetime
+
+
+class ReportDomainOut(BaseModel):
+    domain: str
+    visit_count: int
+    unique_users: int
+
+
+class ReportDayOut(BaseModel):
+    date: date
+    visits: int
+
+
+class ReportHourOut(BaseModel):
+    hour: int
+    visits: int
+
+
+class ReportOut(BaseModel):
+    start: date
+    end: date
+    timezone: str
+    visits: int
+    users: int
+    devices: int
+    domains: int
+    top_domains: list[ReportDomainOut]
+    daily: list[ReportDayOut]
+    hourly: list[ReportHourOut]

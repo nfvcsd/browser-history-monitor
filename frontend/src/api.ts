@@ -1,5 +1,6 @@
 import type {
   DomainSummary,
+  Report,
   HistoryVisit,
   Overview,
   User,
@@ -12,6 +13,8 @@ async function request<T>(
   path: string,
   token: string,
   params?: URLSearchParams,
+  asBlob = false,
+  signal?: AbortSignal,
 ): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   if (params) {
@@ -19,6 +22,7 @@ async function request<T>(
   }
 
   const response = await fetch(url, {
+    signal,
     headers: {
       "X-Admin-Token": token,
     },
@@ -26,14 +30,22 @@ async function request<T>(
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    const detail = typeof body?.detail === "string" ? body.detail : response.statusText;
+    const detail =
+      typeof body?.detail === "string" ? body.detail : response.statusText;
     throw new Error(`${response.status} ${detail}`);
   }
 
-  return response.json() as Promise<T>;
+  return (asBlob ? response.blob() : response.json()) as Promise<T>;
 }
 
 export const api = {
+  report: (token: string, params: URLSearchParams) =>
+    request<Report>("/api/v1/reports", token, params),
+  exportReport: (
+    token: string,
+    params: URLSearchParams,
+    signal?: AbortSignal,
+  ) => request<Blob>("/api/v1/reports/export.csv", token, params, true, signal),
   overview: (token: string) => request<Overview>("/api/v1/overview", token),
   users: (token: string) => request<User[]>("/api/v1/users", token),
   userSummaries: (token: string, params: URLSearchParams) =>

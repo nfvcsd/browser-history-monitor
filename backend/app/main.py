@@ -7,6 +7,7 @@ from .config import get_settings
 from .db import Base, engine
 from .routes.admin import router as admin_router
 from .routes.sync import router as sync_router
+from .routes.reports import router as reports_router
 
 
 @asynccontextmanager
@@ -40,3 +41,4 @@ def health() -> dict[str, str]:
 
 app.include_router(sync_router)
 app.include_router(admin_router)
+app.include_router(reports_router)

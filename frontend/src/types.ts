@@ -43,3 +43,16 @@ export interface DomainSummary {
   first_activity: string;
   last_activity: string;
 }
+
+export interface Report {
+  start: string;
+  end: string;
+  timezone: string;
+  visits: number;
+  users: number;
+  devices: number;
+  domains: number;
+  top_domains: { domain: string; visit_count: number; unique_users: number }[];
+  daily: { date: string; visits: number }[];
+  hourly: { hour: number; visits: number }[];
+}

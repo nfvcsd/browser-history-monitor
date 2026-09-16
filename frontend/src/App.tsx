@@ -9,6 +9,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { api } from "./api";
+import ReportsPage from "./ReportsPage";
 import type { HistoryVisit } from "./types";
 
 const PAGE_SIZE = 100;
@@ -507,7 +508,7 @@ function Console() {
     return (
       <main className="login-shell">
         <form className="login-card" onSubmit={login}>
-          <span className="eyebrow">Milestone 2</span>
+          <span className="eyebrow">Milestone 3</span>
           <h1>Browser History Monitor</h1>
           <p>Enter the development administrator token.</p>
           <input
@@ -536,7 +537,8 @@ function Console() {
           </NavLink>
           <NavLink to="/users">Users</NavLink>
           <NavLink to="/domains">Domains</NavLink>
-          {["Reports", "Audit Log", "Settings"].map((label) => (
+          <NavLink to="/reports">Reports</NavLink>
+          {["Audit Log", "Settings"].map((label) => (
             <button disabled key={label}>
               {label}
               <small>Not yet implemented</small>
@@ -571,6 +573,7 @@ function Console() {
           <Route path="/users" element={<UsersPage {...props} />} />
           <Route path="/users/:userId" element={<UserHistory {...props} />} />
           <Route path="/domains" element={<DomainsPage {...props} />} />
+          <Route path="/reports" element={<ReportsPage {...props} />} />
           <Route
             path="/domains/:domain"
             element={<DomainHistory {...props} />}
