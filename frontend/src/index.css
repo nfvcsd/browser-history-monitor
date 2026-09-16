@@ -426,3 +426,11 @@ main a {
     flex-direction: column;
   }
 }
+
+.report-page { min-width: 180px; max-width: 650px; overflow-wrap: anywhere; }
+.report-page strong, .report-page a, .report-page > span { display: block; }
+.report-page a, .report-page > span { font-size: 13px; margin-top: 6px; }
+
+.google-signin { margin: 20px 0; min-height: 44px; }
+.auth-retry { margin-top: 16px; }
+.signed-in-user { color: #bdd0d7; font-size: 12px; overflow-wrap: anywhere; }

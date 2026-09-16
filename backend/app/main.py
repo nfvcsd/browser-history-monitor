@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .db import Base, engine
 from .routes.admin import router as admin_router
+from .routes.auth import router as auth_router
 from .routes.sync import router as sync_router
 from .routes.reports import router as reports_router
 
@@ -30,7 +31,7 @@ app.add_middleware(
     allow_origins=settings.cors_origin_list,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Token", "X-Extension-Token"],
+    allow_headers=["Content-Type", "X-Admin-Token", "X-Extension-Token", "Authorization"],
 )
 
 
@@ -40,5 +41,6 @@ def health() -> dict[str, str]:
 
 
 app.include_router(sync_router)
+app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(reports_router)

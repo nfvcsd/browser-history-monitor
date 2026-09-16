@@ -4,3 +4,5 @@ sqlalchemy>=2.0,<2.1
 psycopg[binary]>=3.2,<4
 pydantic-settings>=2.6,<3
 email-validator>=2.2,<3
+google-auth[requests]>=2.38,<3
+CacheControl>=0.14,<1

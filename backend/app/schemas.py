@@ -98,6 +98,13 @@ class ReportHourOut(BaseModel):
     visits: int
 
 
+class ReportPageOut(BaseModel):
+    title: str | None
+    url: str
+    visit_count: int
+    unique_users: int
+
+
 class ReportOut(BaseModel):
     start: date
     end: date
@@ -107,5 +114,6 @@ class ReportOut(BaseModel):
     devices: int
     domains: int
     top_domains: list[ReportDomainOut]
+    top_pages: list[ReportPageOut]
     daily: list[ReportDayOut]
     hourly: list[ReportHourOut]

@@ -191,6 +191,37 @@ class ReportTests(unittest.TestCase):
                     with Session(engine) as db:
                         db.execute(delete(HistoryVisit).where(HistoryVisit.domain == "dst.test")); db.commit()
 
+    def test_page_title_aggregation(self):
+        with Session(engine) as db:
+            other = db.query(User).filter(User.email == "report-b@example.test").one()
+            other_device = db.query(Device).filter(Device.user_id == other.id).one()
+            events = [
+                (self.a, self.d1, "https://pages.test/a", "Useful title"),
+                (self.a, self.d1, "https://pages.test/a", "Useful title"),
+                (other.id, other_device.id, "https://pages.test/a", "Useful title"),
+                (self.a, self.d1, "https://pages.test/a", "Updated title"),
+                (self.a, self.d1, "https://pages.test/b", "Useful title"),
+                (self.a, self.d1, "https://pages.test/empty", None),
+                (self.a, self.d1, "https://pages.test/empty", "   "),
+            ]
+            for i, (user, device, url, title) in enumerate(events):
+                db.add(HistoryVisit(user_id=user, device_id=device, chrome_visit_id=f"page-{i}", url=url, title=title, domain="pages.test", visit_time=datetime(2026, 9, 15, 12, tzinfo=timezone.utc)))
+            db.commit()
+        try:
+            report = self.request(domain="pages.test", timezone="America/Chicago").json()
+            self.assertEqual(report["visits"], 7)
+            self.assertEqual(len(report["top_pages"]), 4)
+            self.assertEqual(report["top_pages"][0], {"url": "https://pages.test/a", "title": "Useful title", "visit_count": 3, "unique_users": 2})
+            self.assertEqual(report["top_pages"][1]["title"], None)
+            self.assertEqual(report["top_pages"][1]["visit_count"], 2)
+            own = self.request(domain="pages.test", user_id=str(self.a)).json()
+            self.assertEqual(sum(p["visit_count"] for p in own["top_pages"]), 6)
+            self.assertTrue(all(p["unique_users"] == 1 for p in own["top_pages"]))
+            self.assertEqual(self.request(domain="pages.test", start="2026-09-16").json()["top_pages"], [])
+        finally:
+            with Session(engine) as db:
+                db.execute(delete(HistoryVisit).where(HistoryVisit.domain == "pages.test")); db.commit()
+
     def test_validation_and_auth(self):
         for endpoint in ["", "/export.csv"]:
             path = "/api/v1/reports" + endpoint

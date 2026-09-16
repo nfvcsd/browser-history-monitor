@@ -10,6 +10,7 @@ import {
 } from "react-router-dom";
 import { api } from "./api";
 import ReportsPage from "./ReportsPage";
+import AuthGate, { AdminIdentity } from "./AuthGate";
 import type { HistoryVisit } from "./types";
 
 const PAGE_SIZE = 100;
@@ -488,41 +489,16 @@ function DomainHistory(props: PageProps) {
   const { domain } = useParams();
   return <HistoryPage {...props} exactDomain={domain} />;
 }
-function Console() {
-  const [token, setToken] = useState(
-    () => localStorage.getItem("adminToken") ?? "",
-  );
+function Console({
+  token,
+  identity,
+  logout,
+}: {
+  token: string;
+  identity: AdminIdentity;
+  logout: () => void;
+}) {
   const [revision, setRevision] = useState(0);
-  function login(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const value = new FormData(event.currentTarget)
-      .get("token")
-      ?.toString()
-      .trim();
-    if (value) {
-      localStorage.setItem("adminToken", value);
-      setToken(value);
-    }
-  }
-  if (!token)
-    return (
-      <main className="login-shell">
-        <form className="login-card" onSubmit={login}>
-          <span className="eyebrow">Milestone 3</span>
-          <h1>Browser History Monitor</h1>
-          <p>Enter the development administrator token.</p>
-          <input
-            name="token"
-            type="password"
-            aria-label="Administrator token"
-            autoComplete="off"
-            placeholder="DEV_ADMIN_TOKEN"
-            required
-          />
-          <button>Open dashboard</button>
-        </form>
-      </main>
-    );
   const props = { token, revision };
   return (
     <div className="app-shell">
@@ -545,13 +521,10 @@ function Console() {
             </button>
           ))}
         </nav>
-        <button
-          className="ghost"
-          onClick={() => {
-            localStorage.removeItem("adminToken");
-            setToken("");
-          }}
-        >
+        <p className="signed-in-user">
+          {identity.email || "Development administrator"}
+        </p>
+        <button className="ghost" onClick={logout}>
           Sign out
         </button>
       </aside>
@@ -595,7 +568,7 @@ function Console() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Console />
+      <AuthGate>{(props) => <Console {...props} />}</AuthGate>
     </BrowserRouter>
   );
 }

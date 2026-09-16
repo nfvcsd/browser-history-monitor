@@ -83,6 +83,18 @@ def report(filters: ReportFilters = Depends(), db: Session = Depends(get_db)):
         .mappings()
         .all()
     )
+    # Keep titles associated with their actual URL; normalize absent/blank titles.
+    page_title = func.nullif(func.trim(HistoryVisit.title), "")
+    pages = db.execute(
+        select(
+            page_title.label("title"), HistoryVisit.url,
+            func.count().label("visit_count"),
+            func.count(distinct(HistoryVisit.user_id)).label("unique_users"),
+        ).where(*filters.conditions)
+        .group_by(HistoryVisit.url, page_title)
+        .order_by(func.count().desc(), HistoryVisit.url, page_title.asc().nulls_last())
+        .limit(20)
+    ).mappings().all()
     utc_time = func.timezone(filters.zone.key, HistoryVisit.visit_time)
     day = func.date(utc_time)
     hour = func.extract("hour", utc_time)
@@ -102,6 +114,7 @@ def report(filters: ReportFilters = Depends(), db: Session = Depends(get_db)):
         "timezone": filters.zone.key,
         **summary,
         "top_domains": top,
+        "top_pages": pages,
         "daily": [
             {
                 "date": filters.start + timedelta(days=i),

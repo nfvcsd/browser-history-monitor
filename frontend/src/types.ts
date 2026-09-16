@@ -52,6 +52,7 @@ export interface Report {
   users: number;
   devices: number;
   domains: number;
+  top_pages: { title: string | null; url: string; visit_count: number; unique_users: number }[];
   top_domains: { domain: string; visit_count: number; unique_users: number }[];
   daily: { date: string; visits: number }[];
   hourly: { hour: number; visits: number }[];

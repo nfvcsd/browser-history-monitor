@@ -250,6 +250,24 @@ export default function ReportsPage({
             <p className="empty">No visits match this report’s filters.</p>
           )}
           <section className="panel report-top">
+            <h2>Top pages</h2>
+            <p className="muted">Up to 20 page title and URL combinations by visit count, using the selected filters. A page whose title changed may appear more than once.</p>
+            <div className="table-scroll">
+              <table>
+                <thead><tr><th>Page title / URL</th><th>Visits</th><th>Unique users</th></tr></thead>
+                <tbody>{data.top_pages.map((page) => (
+                  <tr key={JSON.stringify([page.url, page.title])}>
+                    <td className="report-page"><strong>{page.title || "Untitled page"}</strong>
+                      {/^https?:\/\//i.test(page.url) ? <a href={page.url} target="_blank" rel="noreferrer">{page.url}</a> : <span>{page.url}</span>}
+                    </td>
+                    <td>{number(page.visit_count)}</td><td>{number(page.unique_users)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+            {!data.top_pages.length && <p className="empty">No pages in this report.</p>}
+          </section>
+          <section className="panel report-top">
             <h2>Top domains</h2>
             <p className="muted">
               Up to 20 domains by visit count. Visits without a hostname count

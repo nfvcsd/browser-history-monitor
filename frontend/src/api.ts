@@ -1,3 +1,5 @@
+import type { AdminIdentity, AuthConfig } from "./AuthGate";
+
 import type {
   DomainSummary,
   Report,
@@ -25,15 +27,24 @@ async function request<T>(
 
   const response = await fetch(url, {
     signal,
-    headers: {
-      "X-Admin-Token": token,
-    },
+    headers: token
+      ? token.startsWith("google:")
+        ? { Authorization: `Bearer ${token.slice(7)}` }
+        : { "X-Admin-Token": token.startsWith("dev:") ? token.slice(4) : token }
+      : {},
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     const detail =
       typeof body?.detail === "string" ? body.detail : response.statusText;
+    if (token && (response.status === 401 || response.status === 403)) {
+      window.dispatchEvent(
+        new CustomEvent("admin-auth-required", {
+          detail: { token, message: detail },
+        }),
+      );
+    }
     throw new Error(`${response.status} ${detail}`);
   }
 
@@ -41,6 +52,8 @@ async function request<T>(
 }
 
 export const api = {
+  authConfig: () => request<AuthConfig>("/api/v1/auth/config", ""),
+  me: (token: string) => request<AdminIdentity>("/api/v1/auth/me", token),
   report: (token: string, params: URLSearchParams) =>
     request<Report>("/api/v1/reports", token, params),
   exportReport: (
@@ -48,7 +61,12 @@ export const api = {
     params: URLSearchParams,
     signal?: AbortSignal,
   ) => request<Blob>("/api/v1/reports/export.csv", token, params, true, signal),
-  overview: (token: string) => request<Overview>("/api/v1/overview", token, new URLSearchParams({ timezone: browserTimezone() })),
+  overview: (token: string) =>
+    request<Overview>(
+      "/api/v1/overview",
+      token,
+      new URLSearchParams({ timezone: browserTimezone() }),
+    ),
   users: (token: string) => request<User[]>("/api/v1/users", token),
   userSummaries: (token: string, params: URLSearchParams) =>
     request<UserSummary[]>("/api/v1/users/summary", token, params),

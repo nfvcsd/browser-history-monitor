@@ -1,4 +1,4 @@
-# Browser History Monitor — Milestone 3
+# Browser History Monitor — Milestone 4
 
 This repository contains the centralized Chrome history system with routed
 Overview, Users, Domains and Reports pages:
@@ -11,17 +11,20 @@ Overview, Users, Domains and Reports pages:
 
 ## Security status
 
-This milestone intentionally uses two development tokens:
+Dashboard authentication has two mutually exclusive modes:
 
-- `DEV_EXTENSION_TOKEN` authenticates extension sync requests.
-- `DEV_ADMIN_TOKEN` authenticates dashboard/API requests.
+- `AUTH_MODE=google`: verified Google Workspace sign-in plus an exact administrator
+  email allowlist. The development administrator token is rejected in this mode.
+- `AUTH_MODE=development`: shared `DEV_ADMIN_TOKEN` for local testing only.
 
-The extension also reports the Chrome profile email (or a configured fallback).
-That identity is **not yet cryptographically verified**. Do not expose this
-version to the public Internet as a production monitoring system.
+The development Compose stack defaults to development mode for compatibility;
+`.env.example` sets it explicitly. Running the backend directly defaults to
+Google mode and denies access until configured. A typo in `AUTH_MODE` prevents
+startup. Credentials from one mode cannot authenticate in the other.
 
-A future milestone should replace development authentication with Google
-Workspace OIDC and bind extension enrollment to a verified Workspace identity.
+The extension still uses `DEV_EXTENSION_TOKEN` and reports an **unverified**
+profile email. Verified extension enrollment, audit logging, retention and
+production deployment hardening remain future work.
 
 ## Start the server
 
@@ -46,7 +49,8 @@ Workspace OIDC and bind extension enrollment to a verified Workspace identity.
    - FastAPI docs: http://localhost:8000/docs
    - Health check: http://localhost:8000/health
 
-5. Paste `DEV_ADMIN_TOKEN` into the dashboard when prompted.
+5. In development mode, paste `DEV_ADMIN_TOKEN`. For Workspace sign-in, follow
+   the Google setup section below before changing `AUTH_MODE`.
 
 ## Load the extension
 
@@ -84,11 +88,18 @@ The extension performs:
 - `GET /api/v1/reports` — report summaries and activity aggregations
 - `GET /api/v1/reports/export.csv` — streaming CSV of matching visits
 
-Dashboard endpoints require:
+Dashboard endpoints require the header for the selected mode:
 
 ```text
+# AUTH_MODE=google
+Authorization: Bearer <Google ID token>
+# AUTH_MODE=development
 X-Admin-Token: <DEV_ADMIN_TOKEN>
 ```
+
+`GET /api/v1/auth/config` exposes only the sign-in mode, public Google client ID,
+and configuration readiness. `GET /api/v1/auth/me` validates credentials and
+returns the authorized administrator's identity and credential expiry.
 
 Extension sync requires:
 
@@ -132,7 +143,7 @@ add Alembic migrations.
 
 ## Future work
 
-1. Google Workspace OIDC for the React dashboard.
+1. Additional investigator/auditor permission levels.
 2. Verified extension enrollment instead of a shared sync token.
 3. Roles: Administrator, Investigator, Auditor.
 4. Audit logging for history access/search/export.
@@ -161,7 +172,7 @@ add Alembic migrations.
 Filters and pagination live in the URL, supporting direct links, reload and
 browser Back/Forward. Vite serves nested routes during development. A future
 production web server must serve `index.html` for unknown frontend paths.
-Development token authentication and extension sync are unchanged.
+Dashboard authentication applies to every page and export. Extension sync is unchanged.
 
 Counts are computed in PostgreSQL across matching stored visit rows, **not** by
 summing Chrome's URL-level `visit_count` metadata or counting a downloaded page.
@@ -193,6 +204,7 @@ application database.
 cd backend
 python -m pip install -r requirements-dev.txt
 export DATABASE_URL='postgresql+psycopg://postgres:YOUR_TEST_PASSWORD@localhost:5432/milestone_test'
+export AUTH_MODE='development'
 export DEV_ADMIN_TOKEN='test-admin'
 export DEV_EXTENSION_TOKEN='test-extension'
 python -m unittest discover -s tests -v
@@ -253,3 +265,90 @@ browser timezone explicitly. CSV includes both local time and the original UTC
 instant so repeated daylight-saving hours remain distinguishable. No stored
 values or schema changes are needed. A shared report URL is interpreted in the
 viewer's browser timezone.
+
+
+Reports also include **Top pages**: up to 20 title/URL combinations with visit
+and distinct-user counts, using the same date, timezone, user and domain filters.
+The title appears first, with the URL underneath. Missing or whitespace-only
+titles appear as “Untitled page”. Identical titles on different URLs remain
+separate; changed titles on the same URL also remain separate. Counts sort by
+visits descending, then URL and title. CSV exports already include each visit's
+original title and URL and continue to export all matching visits.
+
+
+## Google Workspace sign-in setup
+
+Each school uses its own deployment, database, Google web client and configuration.
+The administrator list is a deployment setting, not a hard-coded school/account.
+This is not a shared multi-school tenant system: every allowed administrator can
+read all history in that deployment. Adding multiple Workspace domains grants
+those approved administrators access to the same deployment's data.
+
+1. In the school's Google Cloud project, configure the OAuth consent screen /
+   Google Auth Platform branding and audience. Use an Internal audience when
+   appropriate for a single Workspace organization.
+2. Create an OAuth client of type **Web application**. Add the dashboard's exact
+   origin to **Authorized JavaScript origins**, for example `http://localhost:5173`
+   for this development stack (also add `http://localhost` for local testing per
+   Google's setup guidance), or the school's HTTPS dashboard origin. Scheme,
+   hostname and port must match. `localhost` and `127.0.0.1` are different origins.
+   This app uses Google's JavaScript popup callback; it does not require a backend
+   OAuth redirect endpoint or a client secret.
+3. Set these values in the deployment's untracked `.env`:
+
+   ```dotenv
+   AUTH_MODE=google
+   GOOGLE_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+   GOOGLE_WORKSPACE_DOMAINS=school.example
+   ADMIN_EMAILS=administrator@school.example
+   CORS_ORIGINS=http://localhost:5173
+   ```
+
+   Use comma-separated domains/emails for additional authorized domains or
+   administrators. Matching is exact and case-insensitive, with no wildcards.
+   A user must have a verified email, a Google `hd` claim matching a configured
+   Workspace domain, **and** an email matching `ADMIN_EMAILS`. An email suffix
+   alone is not sufficient. Do not put the admin list or any tokens in frontend
+   `VITE_*` variables; the frontend fetches only the public auth configuration.
+4. Recreate the stack: `docker compose up --build -d`. Confirm the Google button
+   appears, sign in as an allowed administrator and verify the signed-in email
+   in the sidebar. A non-allowlisted account must be denied. Direct API calls
+   using the development token must also be denied in Google mode.
+
+To add/remove administrators, edit `ADMIN_EMAILS` and recreate the backend with
+`docker compose up -d --force-recreate backend`. Authorization is checked on each
+API request; an already-open dashboard also revalidates on window focus and every
+five minutes. Domain or allowlist changes do not require code edits, frontend
+rebuilds or database migrations. Audit Log and Settings are still placeholders;
+there is no in-app administrator editor in this milestone.
+
+The backend validates the signature, issuer, audience and expiry using Google's
+Python authentication library; it caches public signing certificates according
+to Google's cache headers. Missing configuration, unverified accounts, unknown
+domains, non-allowlisted emails and verification failures deny access. Network
+verification outages return a retryable error without enabling development auth.
+
+The browser keeps the credential in tab session storage (not persistent local
+storage), validates it with `/auth/me` before opening protected pages, and sends
+it only in an authentication header. Legacy development tokens are removed from
+local storage and migrated only after successful development-mode validation.
+On token expiry or authorization denial, the dashboard returns to sign-in.
+Sign out clears the app's tab credential; it does not sign out of Google or revoke
+an already-issued Google ID token on other devices. There is no refresh-token
+storage or offline access. Sign-in must be repeated after the Google ID token
+expires. HTTPS is required outside localhost, and scripts on the dashboard
+origin must be trusted because session storage is accessible to same-origin JS.
+
+The app uses the GIS **JavaScript callback** flow with explicit bearer headers,
+not a cookie-authenticated login POST. It sets no ambient authentication cookies.
+If a future change introduces cookie sessions or Google's redirect POST flow,
+implement the corresponding CSRF/state protections for that flow.
+
+Automated auth tests use locally signed JWTs and mocked public signing keys to
+exercise the real Google verification library, including bad signatures, audience,
+issuer and expiry, domain/email restrictions, mode isolation, outage handling and
+CORS. Live Google account sign-in must additionally be checked with the school's
+registered OAuth client; it cannot be validated with placeholder client settings.
+
+Reference: [Google sign-in setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid),
+[server-side ID token verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token).
