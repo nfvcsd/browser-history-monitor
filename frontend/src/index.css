@@ -1,0 +1,192 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #14202b;
+  background: #f3f6f8;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input, select { font: inherit; }
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: #003142;
+  color: white;
+  font-weight: 650;
+}
+
+button.secondary {
+  background: white;
+  color: #003142;
+  border: 1px solid #d9e2e7;
+}
+
+button.ghost {
+  width: 100%;
+  background: transparent;
+  color: #d9e2e7;
+  border: 1px solid #365761;
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at top right, #d9eef9, #f5f7f8 55%);
+}
+
+.login-card {
+  width: min(480px, 100%);
+  padding: 34px;
+  background: white;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 49, 66, 0.12);
+}
+
+.login-card input {
+  width: 100%;
+  margin: 18px 0 12px;
+  padding: 12px 14px;
+  border: 1px solid #cbd7dd;
+  border-radius: 10px;
+}
+
+.login-card button { width: 100%; }
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+}
+
+aside {
+  min-height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  background: #003142;
+  color: white;
+  padding: 28px 20px 22px;
+  display: flex;
+  flex-direction: column;
+}
+
+aside h2 { margin: 4px 0 26px; }
+aside nav { display: grid; gap: 6px; flex: 1; }
+aside nav button {
+  text-align: left;
+  background: transparent;
+  color: #bdd0d7;
+}
+aside nav button.nav-active {
+  background: #0e4b5e;
+  color: white;
+}
+
+main { padding: 34px; width: min(1500px, 100%); }
+header, .panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: 4px; }
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: 11px;
+  font-weight: 800;
+  color: #5f7a86;
+}
+aside .eyebrow { color: #6ab2e2; }
+.muted { color: #71848d; font-size: 14px; }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 28px 0;
+}
+
+.stats article, .panel {
+  background: white;
+  border: 1px solid #e1e8eb;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 49, 66, 0.045);
+}
+
+.stats article { padding: 20px; }
+.stats span { display: block; color: #71848d; font-size: 13px; }
+.stats strong { display: block; font-size: 30px; margin-top: 8px; }
+
+.panel { padding: 24px; }
+
+.filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.2fr auto;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.filters input, .filters select {
+  border: 1px solid #cbd7dd;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: white;
+}
+
+.history-list { border-top: 1px solid #e4ebee; }
+.visit {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 20px;
+  padding: 17px 2px;
+  border-bottom: 1px solid #edf1f3;
+}
+.visit-time { color: #617680; font-size: 13px; }
+.visit-main { min-width: 0; }
+.visit-main strong { display: block; margin-bottom: 4px; }
+.visit-main a {
+  display: block;
+  color: #22627a;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
+.chips span {
+  background: #edf4f6;
+  color: #45616c;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.empty { padding: 36px 8px; color: #71848d; text-align: center; }
+.error {
+  margin: 18px 0;
+  background: #fff0f0;
+  color: #8c2323;
+  border: 1px solid #f2c9c9;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 1fr; }
+  aside { min-height: auto; height: auto; position: static; }
+  aside nav { display: none; }
+  aside .ghost { width: auto; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .filters { grid-template-columns: 1fr; }
+  .visit { grid-template-columns: 1fr; gap: 5px; }
+  main { padding: 20px; }
+}

@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Managed Browser History Agent",
+  "version": "0.1.0",
+  "description": "Synchronizes managed Chrome history to the organization history server.",
+  "minimum_chrome_version": "115",
+  "permissions": [
+    "history",
+    "storage",
+    "alarms",
+    "identity",
+    "identity.email"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://history.nfv.k12.ia.us/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "options_page": "options.html",
+  "storage": {
+    "managed_schema": "schema.json"
+  }
+}

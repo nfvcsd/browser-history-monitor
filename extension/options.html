@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>History Agent Settings</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      background: #f4f7f8;
+      color: #17232c;
+    }
+    main {
+      width: min(700px, calc(100% - 40px));
+      margin: 40px auto;
+      background: white;
+      padding: 28px;
+      border-radius: 16px;
+      border: 1px solid #dce5e8;
+    }
+    label { display: grid; gap: 6px; margin: 16px 0; font-weight: 650; }
+    input {
+      padding: 10px 12px;
+      border: 1px solid #c7d4da;
+      border-radius: 8px;
+      font: inherit;
+    }
+    button {
+      border: 0;
+      border-radius: 9px;
+      padding: 10px 14px;
+      background: #003142;
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+    #status { margin-top: 16px; white-space: pre-wrap; }
+    small { color: #667b85; font-weight: 400; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Managed Browser History Agent</h1>
+    <p>
+      Development configuration. Values supplied through Chrome managed storage
+      will override these local settings.
+    </p>
+
+    <label>
+      API URL
+      <input id="apiUrl" placeholder="http://localhost:8000" />
+    </label>
+
+    <label>
+      Extension token
+      <input id="extensionToken" type="password" />
+    </label>
+
+    <label>
+      Initial history days
+      <input id="initialHistoryDays" type="number" min="1" max="365" />
+    </label>
+
+    <label>
+      Fallback email
+      <input id="fallbackEmail" type="email" placeholder="user@example.org" />
+      <small>Used only if Chrome does not expose a signed-in profile email.</small>
+    </label>
+
+    <button id="save">Save</button>
+    <button id="test">Save and test sync</button>
+    <button id="initial">Run initial sync</button>
+
+    <div id="status"></div>
+  </main>
+
+  <script src="options.js"></script>
+</body>
+</html>

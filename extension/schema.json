@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "apiUrl": {
+      "title": "History server API URL",
+      "description": "Base URL of the organization browser history API.",
+      "type": "string"
+    },
+    "extensionToken": {
+      "title": "Development extension token",
+      "description": "Temporary shared token used only until verified OIDC enrollment is implemented.",
+      "type": "string"
+    },
+    "initialHistoryDays": {
+      "title": "Initial history days",
+      "description": "Number of days of existing Chrome history to import on enrollment.",
+      "type": "integer"
+    },
+    "reconciliationMinutes": {
+      "title": "Reconciliation interval",
+      "description": "Desired reconciliation interval in minutes.",
+      "type": "integer"
+    },
+    "fallbackEmail": {
+      "title": "Fallback email",
+      "description": "Optional development fallback if Chrome profile identity is unavailable.",
+      "type": "string"
+    }
+  }
+}
