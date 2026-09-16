@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "./api";
+import { browserTimezone, localDate } from "./time";
 import type { Report, User } from "./types";
 
 const number = (n: number) => new Intl.NumberFormat().format(n);
@@ -38,16 +39,18 @@ export default function ReportsPage({
   revision: number;
 }) {
   const [params, setParams] = useSearchParams();
+  const timeZone = browserTimezone();
   const [defaults] = useState(() => {
     const end = new Date();
     const start = new Date(end);
-    start.setUTCDate(start.getUTCDate() - 6);
+    start.setDate(start.getDate() - 6);
     return {
-      start: start.toISOString().slice(0, 10),
-      end: end.toISOString().slice(0, 10),
+      start: localDate(start),
+      end: localDate(end),
     };
   });
   const query = new URLSearchParams({
+    timezone: timeZone,
     start: params.get("start") ?? defaults.start,
     end: params.get("end") ?? defaults.end,
   });
@@ -134,7 +137,7 @@ export default function ReportsPage({
       <section className="panel">
         <h2>Reports</h2>
         <p className="muted">
-          Choose up to 366 days. Dates and activity use UTC; both selected dates
+          Choose up to 366 days. Dates and activity use your browser timezone ({timeZone}); both selected dates
           are included. Domain search includes matching subdomains.
         </p>
         <form
@@ -143,7 +146,7 @@ export default function ReportsPage({
           onSubmit={apply}
         >
           <label>
-            From (UTC)
+            From (local date)
             <input
               type="date"
               name="start"
@@ -152,7 +155,7 @@ export default function ReportsPage({
             />
           </label>
           <label>
-            Through (UTC)
+            Through (local date)
             <input
               type="date"
               name="end"
@@ -212,7 +215,7 @@ export default function ReportsPage({
           <section className="panel report-export">
             <div>
               <h2>
-                {data.start} through {data.end} (UTC)
+                {data.start} through {data.end} ({data.timezone})
               </h2>
               <p className="muted">
                 {query.get("user_id")
@@ -278,14 +281,14 @@ export default function ReportsPage({
           </section>
           <div className="report-activity">
             <Activity
-              title="Visits by day (UTC)"
+              title={`Visits by day (${data.timezone})`}
               entries={data.daily.map((day) => ({
                 label: day.date,
                 visits: day.visits,
               }))}
             />
             <Activity
-              title="Visits by hour (UTC)"
+              title={`Visits by hour (${data.timezone})`}
               entries={data.hourly.map((hour) => ({
                 label: `${String(hour.hour).padStart(2, "0")}:00`,
                 visits: hour.visits,

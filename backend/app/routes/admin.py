@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import require_admin_token
 from ..db import get_db
 from ..models import Device, HistoryVisit, User
+from ..timezones import report_timezone
 from ..schemas import DomainOut, HistoryVisitOut, OverviewOut, UserOut, UserSummaryOut
 
 router = APIRouter(
@@ -19,9 +20,13 @@ router = APIRouter(
 
 
 @router.get("/overview", response_model=OverviewOut)
-def overview(db: Session = Depends(get_db)) -> OverviewOut:
+def overview(
+    timezone_name: Annotated[str, Query(alias="timezone", max_length=100)] = "UTC",
+    db: Session = Depends(get_db),
+) -> OverviewOut:
+    zone = report_timezone(timezone_name)
     today_start = datetime.combine(
-        datetime.now(timezone.utc).date(), time.min, tzinfo=timezone.utc
+        datetime.now(zone).date(), time.min, tzinfo=zone
     )
 
     return OverviewOut(

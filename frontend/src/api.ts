@@ -7,6 +7,8 @@ import type {
   UserSummary,
 } from "./types";
 
+import { browserTimezone } from "./time";
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 async function request<T>(
@@ -46,7 +48,7 @@ export const api = {
     params: URLSearchParams,
     signal?: AbortSignal,
   ) => request<Blob>("/api/v1/reports/export.csv", token, params, true, signal),
-  overview: (token: string) => request<Overview>("/api/v1/overview", token),
+  overview: (token: string) => request<Overview>("/api/v1/overview", token, new URLSearchParams({ timezone: browserTimezone() })),
   users: (token: string) => request<User[]>("/api/v1/users", token),
   userSummaries: (token: string, params: URLSearchParams) =>
     request<UserSummary[]>("/api/v1/users/summary", token, params),

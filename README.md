@@ -154,7 +154,7 @@ add Alembic migrations.
   date/time range. Results show visits, distinct users and first/last activity,
   ordered by visits descending then domain. Click a domain to open its exact
   matching history, retaining user and time filters. Subdomains remain separate.
-- **Reports** (`/reports`): UTC date-range summaries, optional user/domain filters,
+- **Reports** (`/reports`): local date-range summaries, optional user/domain filters,
   top 20 domains, visits by day/hour, and CSV export of matching visit rows.
 - **Audit Log and Settings** are disabled, clearly labeled placeholders.
 
@@ -208,9 +208,10 @@ used. Rebuild the Docker stack with `docker compose up --build -d` to run change
 
 ## Reports
 
-Reports default to the last seven UTC calendar days, including today. Select
+Reports default to the last seven browser-local calendar days, including today. Select
 inclusive `start` and `end` dates (`YYYY-MM-DD`), optionally a `user_id` and a
-case-insensitive `domain` substring. Both report endpoints require the existing
+case-insensitive `domain` substring. The browser sends its IANA `timezone`
+(e.g. `America/Chicago`); API callers default to UTC when it is omitted. Both report endpoints require the existing
 `X-Admin-Token` header and accept exactly the same filters. Dates are required
 and ranges must contain 1–366 days. Domain search treats `%` and `_` literally.
 For example:
@@ -224,12 +225,14 @@ Summary totals count stored visits and distinct active users/devices/domains
 within the filters. Empty hostnames contribute to visits/users/devices but not
 the domain count or top-domain list. The top 20 domains sort by visits descending
 then domain name. Daily activity includes zero-visit days; hourly activity has
-24 UTC hour-of-day buckets combined across the selected days. UTC boundaries
-are independent of the browser and database session timezone.
+24 local hour-of-day buckets combined across the selected days. Date boundaries
+are converted to UTC for querying; storage remains UTC. Daylight-saving days
+can contain 23 or 25 hours: skipped hours have zero visits and repeated hours
+combine in the same bucket. Invalid timezone names return 422.
 
 CSV export contains all matching individual visits, without the history API's
-page limit or the top-domain limit. Columns are visit ID, UTC visit timestamp,
-user email, device name, domain, URL, title and transition. The backend streams
+page limit or the top-domain limit. Columns are visit ID, UTC visit timestamp, local timestamp with UTC offset,
+IANA timezone, user email, device name, domain, URL, title and transition. The backend streams
 rows in batches; the browser receives the completed download as a file. Very
 large exports therefore still need browser memory. Export uses the last applied
 filters, not unsaved edits. Navigating away or changing applied filters cancels
@@ -238,6 +241,15 @@ may add matching rows; reports are live queries, not saved snapshots.
 
 CSV uses standard quoting for commas, quotes and newlines. Potential spreadsheet
 formulas are prefixed with an apostrophe in exported text cells. An empty result
-exports column headings only. Tests cover UTC boundaries, zero buckets, matching
+exports column headings only. Tests cover UTC/local boundaries, daylight-saving transitions, fractional offsets, zero buckets, matching
 report/export filters, CSV escaping, unauthorized requests, invalid ranges and
 exports exceeding 1,000 rows.
+
+
+History, user sync timestamps and domain activity already render in the browser's
+local timezone. Overview's “Visits today” now also uses the browser's local day
+(via the optional `timezone` query parameter). Report dates and charts show the
+browser timezone explicitly. CSV includes both local time and the original UTC
+instant so repeated daylight-saving hours remain distinguishable. No stored
+values or schema changes are needed. A shared report URL is interpreted in the
+viewer's browser timezone.

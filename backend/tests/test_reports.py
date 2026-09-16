@@ -152,6 +152,45 @@ class ReportTests(unittest.TestCase):
                 )
                 db.commit()
 
+    def test_local_boundaries_and_fractional_offset(self):
+        for zone, expected_hour in [("America/Chicago", 18), ("Asia/Kolkata", 5)]:
+            report = self.request(start="2026-09-15", end="2026-09-15", timezone=zone).json()
+            self.assertEqual(report["timezone"], zone)
+            self.assertEqual(report["visits"], 2)
+            self.assertGreater(report["hourly"][expected_hour]["visits"], 0)
+            rows = list(csv.DictReader(io.StringIO(self.request("/export.csv", start="2026-09-15", end="2026-09-15", timezone=zone).text)))
+            self.assertEqual(len(rows), 2)
+            self.assertTrue(all(row["visit_time_local"].startswith("2026-09-15") for row in rows))
+            self.assertTrue(all(row["timezone"] == zone for row in rows))
+            self.assertTrue(all(row["visit_time_utc"].endswith("+00:00") for row in rows))
+
+    def test_daylight_saving_days(self):
+        cases = [
+            ("2026-03-08", ["2026-03-08T05:59:59Z", "2026-03-08T06:00:00Z", "2026-03-08T07:30:00Z", "2026-03-08T08:30:00Z", "2026-03-09T04:59:59Z", "2026-03-09T05:00:00Z"]),
+            ("2026-11-01", ["2026-11-01T04:59:59Z", "2026-11-01T05:00:00Z", "2026-11-01T06:30:00Z", "2026-11-01T07:30:00Z", "2026-11-02T05:59:59Z", "2026-11-02T06:00:00Z"]),
+        ]
+        for day, timestamps in cases:
+            with self.subTest(day=day):
+                with Session(engine) as db:
+                    db.add_all([HistoryVisit(user_id=self.a, device_id=self.d1, chrome_visit_id=f"dst-{day}-{i}", url="https://dst.test", domain="dst.test", visit_time=datetime.fromisoformat(timestamp)) for i, timestamp in enumerate(timestamps)])
+                    db.commit()
+                try:
+                    filters = {"start": day, "end": day, "timezone": "America/Chicago", "domain": "dst.test"}
+                    report = self.request(**filters).json()
+                    self.assertEqual(report["visits"], 4)
+                    self.assertEqual(report["daily"], [{"date": day, "visits": 4}])
+                    rows = list(csv.DictReader(io.StringIO(self.request("/export.csv", **filters).text)))
+                    self.assertEqual(len(rows), 4)
+                    if day.startswith("2026-03"):
+                        self.assertEqual(report["hourly"][2]["visits"], 0)
+                    else:
+                        self.assertEqual(report["hourly"][1]["visits"], 2)
+                        self.assertTrue(rows[1]["visit_time_local"].endswith("-05:00"))
+                        self.assertTrue(rows[2]["visit_time_local"].endswith("-06:00"))
+                finally:
+                    with Session(engine) as db:
+                        db.execute(delete(HistoryVisit).where(HistoryVisit.domain == "dst.test")); db.commit()
+
     def test_validation_and_auth(self):
         for endpoint in ["", "/export.csv"]:
             path = "/api/v1/reports" + endpoint
@@ -160,6 +199,7 @@ class ReportTests(unittest.TestCase):
             )
             for filters in [
                 {},
+                {**self.filters, "timezone": "Not/AZone"},
                 {"start": "bad", "end": "2026-09-16"},
                 {"start": "2026-09-17", "end": "2026-09-16"},
                 {"start": "2020-01-01", "end": "2026-09-16"},

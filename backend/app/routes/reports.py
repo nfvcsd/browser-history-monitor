@@ -1,4 +1,4 @@
-"""Report aggregation and CSV export share the same inclusive UTC date filters."""
+"""Report aggregation and CSV export share the same inclusive local date filters."""
 
 import csv
 import io
@@ -15,6 +15,7 @@ from ..auth import require_admin_token
 from ..db import SessionLocal, get_db
 from ..models import Device, HistoryVisit, User
 from ..schemas import ReportOut
+from ..timezones import report_timezone
 
 router = APIRouter(
     prefix="/api/v1/reports",
@@ -28,6 +29,7 @@ class ReportFilters:
         self,
         start: date,
         end: date,
+        timezone_name: Annotated[str, Query(alias="timezone", max_length=100)] = "UTC",
         user_id: uuid.UUID | None = None,
         domain: Annotated[str | None, Query(max_length=512)] = None,
     ):
@@ -35,11 +37,12 @@ class ReportFilters:
             raise HTTPException(
                 422, "Choose a date range of 1–366 days, with start on or before end"
             )
+        self.zone = report_timezone(timezone_name)
         self.start, self.end = start, end
         self.conditions = [
-            HistoryVisit.visit_time >= datetime.combine(start, time.min, timezone.utc),
+            HistoryVisit.visit_time >= datetime.combine(start, time.min, self.zone).astimezone(timezone.utc),
             HistoryVisit.visit_time
-            < datetime.combine(end + timedelta(days=1), time.min, timezone.utc),
+            < datetime.combine(end + timedelta(days=1), time.min, self.zone).astimezone(timezone.utc),
         ]
         if user_id:
             self.conditions.append(HistoryVisit.user_id == user_id)
@@ -80,7 +83,7 @@ def report(filters: ReportFilters = Depends(), db: Session = Depends(get_db)):
         .mappings()
         .all()
     )
-    utc_time = func.timezone("UTC", HistoryVisit.visit_time)
+    utc_time = func.timezone(filters.zone.key, HistoryVisit.visit_time)
     day = func.date(utc_time)
     hour = func.extract("hour", utc_time)
     daily = dict(
@@ -96,7 +99,7 @@ def report(filters: ReportFilters = Depends(), db: Session = Depends(get_db)):
     return {
         "start": filters.start,
         "end": filters.end,
-        "timezone": "UTC",
+        "timezone": filters.zone.key,
         **summary,
         "top_domains": top,
         "daily": [
@@ -138,6 +141,8 @@ def export_report(filters: ReportFilters = Depends()):
             [
                 "visit_id",
                 "visit_time_utc",
+                "visit_time_local",
+                "timezone",
                 "user_email",
                 "device_name",
                 "domain",
@@ -167,7 +172,8 @@ def export_report(filters: ReportFilters = Depends()):
             )
             for row in db.execute(statement):
                 yield encode(
-                    [row[0], row[1].astimezone(timezone.utc).isoformat(), *row[2:]]
+                    [row[0], row[1].astimezone(timezone.utc).isoformat(),
+                     row[1].astimezone(filters.zone).isoformat(), filters.zone.key, *row[2:]]
                 )
 
     return StreamingResponse(

@@ -1,6 +1,7 @@
 """Integration checks against a disposable PostgreSQL database (never production)."""
 import unittest
 import uuid
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
@@ -73,6 +74,14 @@ class AdminTests(unittest.TestCase):
         self.assertEqual(self.get("/domains", q="%"), [])
         self.assertEqual(self.get("/domains", q="SUB")[0]["domain"], "sub.example.com")
         self.assertEqual(self.get("/domains", limit=1, offset=1)[0]["domain"], "sub.example.com")
+
+    def test_overview_local_today(self):
+        instant = datetime(2026, 9, 16, 2, tzinfo=timezone.utc)
+        with patch("app.routes.admin.datetime", wraps=datetime) as clock:
+            clock.now.side_effect = lambda zone: instant.astimezone(zone)
+            self.assertEqual(self.get("/overview", timezone="UTC")["visits_today"], 0)
+            self.assertEqual(self.get("/overview", timezone="America/Chicago")["visits_today"], 5)
+        self.assertEqual(self.client.get("/api/v1/overview", params={"timezone": "Invalid/Zone"}, headers=self.headers).status_code, 422)
 
     def test_validation_auth_and_overview(self):
         for path in ["/users/summary", "/domains", f"/users/{self.a}", "/history", "/overview"]:
