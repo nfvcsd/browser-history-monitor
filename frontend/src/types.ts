@@ -29,3 +29,17 @@ export interface HistoryVisit {
   visit_count: number | null;
   typed_count: number | null;
 }
+
+export interface UserSummary extends User {
+  last_sync_at: string | null;
+  device_count: number;
+  visit_count: number;
+}
+
+export interface DomainSummary {
+  domain: string;
+  visit_count: number;
+  unique_users: number;
+  first_activity: string;
+  last_activity: string;
+}

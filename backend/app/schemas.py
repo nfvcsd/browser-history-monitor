@@ -66,3 +66,17 @@ class OverviewOut(BaseModel):
     visits: int
     domains: int
     visits_today: int
+
+
+class UserSummaryOut(UserOut):
+    last_sync_at: datetime | None
+    device_count: int
+    visit_count: int
+
+
+class DomainOut(BaseModel):
+    domain: str
+    visit_count: int
+    unique_users: int
+    first_activity: datetime
+    last_activity: datetime
