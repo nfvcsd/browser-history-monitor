@@ -123,3 +123,22 @@ class AuditEvent(Base):
     status_code: Mapped[int] = mapped_column(Integer)
     filters: Mapped[dict] = mapped_column(JSONB)
     result_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+
+class ActivityInterval(Base):
+    __tablename__ = "activity_intervals"
+    __table_args__ = (
+        UniqueConstraint("device_id", "sample_id", name="uq_activity_device_sample"),
+        Index("ix_activity_user_start", "user_id", "started_at"),
+        Index("ix_activity_domain_start", "domain", "started_at"),
+        Index("ix_activity_device_start", "device_id", "started_at"),
+    )
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    device_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"))
+    sample_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    domain: Mapped[str] = mapped_column(String(512))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

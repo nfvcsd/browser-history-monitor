@@ -1,15 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Managed Browser History Agent",
-  "version": "0.1.0",
-  "description": "Synchronizes managed Chrome history to the organization history server.",
-  "minimum_chrome_version": "115",
+  "version": "0.2.0",
+  "description": "Synchronizes managed history and estimates active foreground browsing time.",
+  "minimum_chrome_version": "120",
   "permissions": [
     "history",
     "storage",
     "alarms",
     "identity",
-    "identity.email"
+    "identity.email",
+    "tabs",
+    "idle"
   ],
   "host_permissions": [
     "http://localhost:8000/*",

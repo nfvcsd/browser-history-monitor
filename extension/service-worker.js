@@ -1,3 +1,4 @@
+importScripts("activity-tracker.js");
 const DEFAULTS = {
   apiUrl: "http://localhost:8000",
   extensionToken: "",
@@ -15,7 +16,12 @@ async function getConfig() {
   return { ...DEFAULTS, ...local, ...managed };
 }
 
-async function getDeviceKey() {
+let deviceKeyPromise;
+function getDeviceKey() {
+  if (!deviceKeyPromise) deviceKeyPromise = createDeviceKey().catch(error => { deviceKeyPromise = undefined; throw error; });
+  return deviceKeyPromise;
+}
+async function createDeviceKey() {
   const { deviceKey } = await chrome.storage.local.get("deviceKey");
   if (deviceKey) return deviceKey;
 
@@ -242,3 +248,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 });
+
+ActivityTracker.install();

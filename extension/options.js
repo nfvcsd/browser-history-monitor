@@ -33,6 +33,8 @@ async function load() {
     "lastSyncResult",
     "lastSyncError",
     "initialSyncCompleted",
+    "lastActivitySync",
+    "lastActivityError",
   ]);
 
   statusEl.textContent = JSON.stringify(state, null, 2);

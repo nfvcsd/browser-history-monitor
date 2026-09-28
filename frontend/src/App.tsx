@@ -10,6 +10,7 @@ import {
 } from "react-router-dom";
 import { api } from "./api";
 import ReportsPage from "./ReportsPage";
+import TimeSpentPage from "./TimeSpentPage";
 import AuditLogPage from "./AuditLogPage";
 import AuthGate, { AdminIdentity } from "./AuthGate";
 import type { HistoryVisit } from "./types";
@@ -206,6 +207,7 @@ function HistoryPage({
           ))}
         </section>
       )}
+      {userId && <p><Link to={`/time?user_id=${userId}`}>View this user’s time by page and domain</Link></p>}
       {data?.person && (
         <section className="stats">
           <article>
@@ -515,6 +517,7 @@ function Console({
           <NavLink to="/users">Users</NavLink>
           <NavLink to="/domains">Domains</NavLink>
           <NavLink to="/reports">Reports</NavLink>
+          <NavLink to="/time">Time Spent</NavLink>
           <NavLink to="/audit">Audit Log</NavLink>
           {["Settings"].map((label) => (
             <button disabled key={label}>
@@ -549,6 +552,7 @@ function Console({
           <Route path="/users/:userId" element={<UserHistory {...props} />} />
           <Route path="/domains" element={<DomainsPage {...props} />} />
           <Route path="/reports" element={<ReportsPage {...props} />} />
+          <Route path="/time" element={<TimeSpentPage {...props} />} />
           <Route path="/audit" element={<AuditLogPage {...props} />} />
           <Route
             path="/domains/:domain"

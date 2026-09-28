@@ -404,3 +404,57 @@ or browser Back to return to a previous page. Audit timestamps display locally.
 Tests cover authenticated identity, filter/credential separation, report/export
 recording, failed queries, database-write failure, access protection, local time
 filter conversion and pagination while new records are inserted.
+
+## Active browsing time
+
+The **Time Spent** page shows measured time grouped by page (title and URL),
+domain, or user. It defaults to all users and all collected time. Select a user
+for individual page/domain totals; filter by domain, search text, or local date
+and time. User history includes a link to that user's time breakdown. Reports
+include the same breakdown within their selected local date range. Existing
+history CSV exports remain visit records; they do not invent per-visit durations.
+
+To enable collection, rebuild the backend/frontend (`docker compose up --build -d`)
+and reload or redeploy extension version **0.2.0**. The extension now requires
+Chrome 120+ and the `tabs` and `idle` permissions. The backend creates the new
+`activity_intervals` table on startup; existing history remains intact. Collection
+starts with the updated extension: older visits cannot be backfilled with time.
+
+Time means estimated active time in the HTTP(S) tab of a focused normal Chrome
+window. It pauses when Chrome loses focus, the system locks, or Chrome reports
+60 seconds of system inactivity. Incognito and internal browser pages are
+excluded. Passive reading after the idle threshold is not counted. Totals sum
+across devices and are not a measurement of attention or unique human wall time.
+
+The extension samples every 30 seconds and at tab/focus/idle transitions. Gaps
+longer than 45 seconds are discarded conservatively, including delayed alarms
+and sleep gaps. Worker checkpoints and queued samples are persisted together;
+browser restarts reset the checkpoint. Crashes, delayed events, and missing
+samples can undercount. See Chrome's [alarm behavior](https://developer.chrome.com/docs/extensions/reference/api/alarms),
+[idle API](https://developer.chrome.com/docs/extensions/reference/api/idle), and
+[service worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle).
+
+Queued samples retain stable IDs so retries cannot double count. The local queue
+is bounded at 10,000 samples / approximately 4 MB; new samples are skipped when
+full. Extension Options shows the last activity sync and error. Queues are bound
+to the original server, email, and device; changing configuration never reassigns
+old samples to another user. Unsent samples for an old configuration remain local
+until that configuration is restored (and still count toward the queue limit).
+
+`POST /api/v1/sync/activity` uses the existing extension token and enrollment
+identity. It accepts up to 250 timestamped samples per batch, requires aware
+UTC-compatible timestamps and positive intervals of at most 90 seconds, rejects
+overlapping intervals on one device, and acknowledges retries idempotently.
+The existing shared extension token does not verify the reported user's identity.
+
+`GET /api/v1/activity/summary` requires administrator authentication and is
+recorded as `activity.view` in the audit log. Parameters: `group_by`
+(`page`, `domain`, `user`), optional `user_id`, literal substring `domain`/`q`,
+aware `start` and exclusive `end`, `limit` (1–200, default 100), and `offset`.
+PostgreSQL calculates totals and clips intervals to the requested boundaries.
+Timestamps stay in UTC; display and date selection use the browser timezone.
+
+Validation includes PostgreSQL aggregation, clipping, user isolation, retries,
+overlap rejection and authentication, plus extension simulations for focus,
+idle, restart, offline retry and excluded pages. Run the extension checks with
+`node --test extension/tests/activity.test.cjs`.

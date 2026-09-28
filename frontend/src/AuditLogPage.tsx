@@ -5,6 +5,7 @@ import { browserTimezone } from "./time";
 import type { AuditPage } from "./types";
 
 const actions: Record<string, string> = {
+  "activity.view": "View time spent",
   "overview.view": "View overview",
   "users.list": "List users",
   "user.view": "View user",

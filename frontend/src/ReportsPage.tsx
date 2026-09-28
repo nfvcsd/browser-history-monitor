@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "./api";
+import { ActivityPanel } from "./TimeSpentPage";
 import { browserTimezone, localDate } from "./time";
 import type { Report, User } from "./types";
 
@@ -132,6 +133,13 @@ export default function ReportsPage({
       if (!controller.signal.aborted) setExporting(false);
     }
   }
+  const activityFilters = new URLSearchParams();
+  if (data) {
+    activityFilters.set("start", new Date(`${data.start}T00:00:00`).toISOString());
+    const end = new Date(`${data.end}T00:00:00`); end.setDate(end.getDate() + 1);
+    activityFilters.set("end", end.toISOString());
+    for (const key of ["user_id", "domain"]) { if (query.get(key)) activityFilters.set(key, query.get(key)!); }
+  }
   return (
     <>
       <section className="panel">
@@ -199,6 +207,7 @@ export default function ReportsPage({
       </section>
       {data && (
         <>
+          <ActivityPanel key={activityFilters.toString()} token={token} revision={revision} filters={activityFilters} />
           <section className="stats">
             {[
               ["Visits", data.visits],

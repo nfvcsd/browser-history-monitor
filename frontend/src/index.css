@@ -441,3 +441,6 @@ main a {
 .audit-details { font-size: 13px; }
 .audit-details dt { font-weight: 650; margin-top: 10px; }
 .audit-details dd { margin: 3px 0 8px; white-space: pre-wrap; }
+
+.time-panel { margin-top: 24px; }
+.time-tabs { display: flex; gap: 10px; margin: 16px 0; }

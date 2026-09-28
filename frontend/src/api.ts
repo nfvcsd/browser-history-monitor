@@ -53,6 +53,7 @@ async function request<T>(
 }
 
 export const api = {
+  activity: (token: string, params: URLSearchParams) => request<import("./TimeSpentPage").ActivitySummary>("/api/v1/activity/summary", token, params),
   audit: (token: string, params: URLSearchParams) =>
     request<AuditPage>("/api/v1/audit", token, params),
   authConfig: () => request<AuthConfig>("/api/v1/auth/config", ""),

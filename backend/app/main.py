@@ -8,6 +8,7 @@ from .db import Base, engine
 from .routes.admin import router as admin_router
 from .routes.auth import router as auth_router
 from .routes.audit import router as audit_router
+from .routes.activity import router as activity_router, sync_router as activity_sync_router
 from .routes.sync import router as sync_router
 from .routes.reports import router as reports_router
 
@@ -44,5 +45,7 @@ def health() -> dict[str, str]:
 app.include_router(sync_router)
 app.include_router(auth_router)
 app.include_router(audit_router)
+app.include_router(activity_router)
+app.include_router(activity_sync_router)
 app.include_router(admin_router)
 app.include_router(reports_router)
