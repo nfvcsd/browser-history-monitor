@@ -20,6 +20,7 @@ async function request<T>(
   params?: URLSearchParams,
   asBlob = false,
   signal?: AbortSignal,
+  body?: unknown,
 ): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   if (params) {
@@ -28,17 +29,30 @@ async function request<T>(
 
   const response = await fetch(url, {
     signal,
-    headers: token
-      ? token.startsWith("google:")
-        ? { Authorization: `Bearer ${token.slice(7)}` }
-        : { "X-Admin-Token": token.startsWith("dev:") ? token.slice(4) : token }
-      : {},
+    method: body === undefined ? "GET" : "POST",
+    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: {
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      ...(token
+        ? token.startsWith("google:")
+          ? { Authorization: `Bearer ${token.slice(7)}` }
+          : {
+              "X-Admin-Token": token.startsWith("dev:")
+                ? token.slice(4)
+                : token,
+            }
+        : {}),
+    },
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     const detail =
-      typeof body?.detail === "string" ? body.detail : response.statusText;
+      typeof body?.detail === "string"
+        ? body.detail
+        : Array.isArray(body?.detail)
+          ? body.detail.map((item: { msg: string }) => item.msg).join("; ")
+          : response.statusText;
     if (token && (response.status === 401 || response.status === 403)) {
       window.dispatchEvent(
         new CustomEvent("admin-auth-required", {
@@ -53,7 +67,44 @@ async function request<T>(
 }
 
 export const api = {
-  activity: (token: string, params: URLSearchParams) => request<import("./TimeSpentPage").ActivitySummary>("/api/v1/activity/summary", token, params),
+  revokeDevice: (token: string, id: string) =>
+    request<{ revoked: boolean }>(
+      `/api/v1/enrollment/${encodeURIComponent(id)}/revoke`,
+      token,
+      undefined,
+      false,
+      undefined,
+      {},
+    ),
+  settings: (token: string) =>
+    request<import("./SettingsPage").CollectionSettings>(
+      "/api/v1/settings",
+      token,
+    ),
+  saveSettings: (
+    token: string,
+    body: import("./SettingsPage").CollectionSettings,
+  ) =>
+    request<import("./SettingsPage").CollectionSettings>(
+      "/api/v1/settings",
+      token,
+      undefined,
+      false,
+      undefined,
+      body,
+    ),
+  deviceHealth: (token: string, params: URLSearchParams) =>
+    request<import("./SettingsPage").DeviceHealthPage>(
+      "/api/v1/settings/devices",
+      token,
+      params,
+    ),
+  activity: (token: string, params: URLSearchParams) =>
+    request<import("./TimeSpentPage").ActivitySummary>(
+      "/api/v1/activity/summary",
+      token,
+      params,
+    ),
   audit: (token: string, params: URLSearchParams) =>
     request<AuditPage>("/api/v1/audit", token, params),
   authConfig: () => request<AuthConfig>("/api/v1/auth/config", ""),

@@ -4,14 +4,15 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 from sqlalchemy import String, distinct, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from ..collection import accepts, policy_record
 from ..audit import AuditedRoute
-from ..auth import require_admin_token, require_extension_token
+from ..auth import require_admin_token, require_extension_token, enforce_device_identity
 from ..db import get_db
 from ..models import ActivityInterval, Device, User
 from ..schemas import SyncBatchIn
@@ -21,6 +22,7 @@ router = APIRouter(prefix="/api/v1/activity", tags=["activity"], route_class=Aud
 
 
 class ActivityIn(BaseModel):
+    collection_permit: str | None = Field(default=None, max_length=2048)
     sample_id: uuid.UUID
     url: str = Field(min_length=1, max_length=8192)
     title: str | None = Field(default=None, max_length=4096)
@@ -45,7 +47,8 @@ class ActivityBatchIn(SyncBatchIn):
 
 
 @sync_router.post("/activity", dependencies=[Depends(require_extension_token)])
-def sync_activity(payload: ActivityBatchIn, db: Session = Depends(get_db)):
+def sync_activity(payload: ActivityBatchIn, request: Request, db: Session = Depends(get_db)):
+    enforce_device_identity(request, payload)
     email = str(payload.user_email).strip().lower()
     now = datetime.now(timezone.utc)
     user_id = db.scalar(insert(User).values(email=email, display_name=payload.display_name, last_seen_at=now).on_conflict_do_update(index_elements=[User.email], set_={"last_seen_at": now}).returning(User.id))
@@ -53,6 +56,10 @@ def sync_activity(payload: ActivityBatchIn, db: Session = Depends(get_db)):
     device = db.scalar(select(Device).where(Device.device_key == payload.device_key).with_for_update())
     if device.user_id != user_id:
         raise HTTPException(409, "Device is already enrolled to a different user")
+    record = policy_record(db)
+    original_count = len(payload.intervals)
+    payload.intervals = [item for item in payload.intervals if accepts(record, payload, item, item.started_at, item.ended_at, now)]
+    filtered = original_count - len(payload.intervals)
     accepted = 0
     for interval in sorted(payload.intervals, key=lambda item: item.started_at):
         if db.scalar(select(ActivityInterval.id).where(ActivityInterval.device_id == device.id, ActivityInterval.sample_id == interval.sample_id)):
@@ -66,7 +73,10 @@ def sync_activity(payload: ActivityBatchIn, db: Session = Depends(get_db)):
     device.last_sync_at = now
     device.last_seen_at = now
     db.commit()
-    return {"accepted": accepted, "duplicates": len(payload.intervals) - accepted}
+    result = {"accepted": accepted, "duplicates": len(payload.intervals) - accepted}
+    if filtered:
+        result["filtered"] = filtered
+    return result
 
 
 @router.get("/summary")

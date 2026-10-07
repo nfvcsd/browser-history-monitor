@@ -5,6 +5,12 @@ import { browserTimezone } from "./time";
 import type { AuditPage } from "./types";
 
 const actions: Record<string, string> = {
+  "device.enroll": "Enroll device",
+  "device.renew": "Renew device credential",
+  "device.revoke": "Revoke device",
+  "settings.view": "View settings",
+  "settings.update": "Update settings",
+  "devices.health": "View device health",
   "activity.view": "View time spent",
   "overview.view": "View overview",
   "users.list": "List users",
@@ -197,7 +203,11 @@ export default function AuditLogPage({
                           {Object.entries(event.filters).map(([key, value]) => (
                             <div key={key}>
                               <dt>{filterLabels[key] || key}</dt>
-                              <dd>{String(value)}</dd>
+                              <dd>
+                                {typeof value === "object"
+                                  ? JSON.stringify(value)
+                                  : String(value)}
+                              </dd>
                             </div>
                           ))}
                           {!Object.keys(event.filters).length && (

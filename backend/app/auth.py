@@ -4,7 +4,13 @@ from typing import Annotated
 
 import requests
 from cachecontrol import CacheControl
-from fastapi import Header, HTTPException, Request
+from fastapi import Header, HTTPException, Request, Depends
+from datetime import datetime, timezone
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from .db import get_db
+from .models import DeviceEnrollment, Device, User
+from .enrollment import credential_hash
 from google.auth import exceptions as google_errors
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2 import id_token
@@ -21,10 +27,47 @@ def _matches(provided: str | None, expected: str) -> bool:
 
 
 def require_extension_token(
+    request: Request,
     x_extension_token: str | None = Header(default=None),
+    x_device_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ) -> None:
-    if not _matches(x_extension_token, get_settings().dev_extension_token):
-        raise HTTPException(401, "Invalid extension token")
+    settings = get_settings()
+    if settings.extension_auth_mode == "development":
+        if not _matches(x_extension_token, settings.dev_extension_token):
+            raise HTTPException(401, "Invalid extension token")
+        return
+    if not x_device_token or len(x_device_token) > 256:
+        raise HTTPException(401, "Device enrollment is required")
+    row = db.execute(
+        select(DeviceEnrollment, Device, User)
+        .join(Device, Device.id == DeviceEnrollment.device_id)
+        .join(User, User.id == Device.user_id)
+        .where(DeviceEnrollment.credential_hash == credential_hash(x_device_token))
+    ).first()
+    if not row:
+        raise HTTPException(401, "Invalid device credential")
+    enrollment, device, user = row
+    if enrollment.revoked_at:
+        raise HTTPException(403, "Enrollment revoked by administrator")
+    if enrollment.expires_at <= datetime.now(timezone.utc):
+        raise HTTPException(401, "Device credential expired")
+    domains = {
+        v.strip().lower()
+        for v in settings.extension_workspace_domains.split(",")
+        if v.strip()
+    }
+    if enrollment.hosted_domain not in domains:
+        raise HTTPException(403, "Workspace domain is no longer allowed")
+    if enrollment.google_subject != user.google_subject:
+        raise HTTPException(403, "Enrollment identity no longer matches user")
+    request.state.device_identity = {"device_key": device.device_key, "email": user.email}
+
+
+def enforce_device_identity(request: Request, payload) -> None:
+    identity = getattr(request.state, "device_identity", None)
+    if identity and (payload.device_key != identity["device_key"] or str(payload.user_email).strip().lower() != identity["email"]):
+        raise HTTPException(403, "Upload identity does not match enrolled device")
 
 
 def verify_google_token(token: str, client_id: str) -> dict:

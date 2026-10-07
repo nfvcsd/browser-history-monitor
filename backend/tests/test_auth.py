@@ -41,6 +41,7 @@ class AuthenticationTests(unittest.TestCase):
             dev_extension_token="extension-secret",
             dev_admin_token="dev-secret",
             auth_mode="google",
+            extension_auth_mode="development",
             google_client_id="client.apps.googleusercontent.com",
             google_workspace_domains=" Example.org ",
             admin_emails=" Admin@Example.org ",

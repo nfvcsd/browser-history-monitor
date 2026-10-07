@@ -19,6 +19,9 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      EXTENSION_AUTH_MODE: ${EXTENSION_AUTH_MODE:-development}
+      EXTENSION_GOOGLE_CLIENT_IDS: ${EXTENSION_GOOGLE_CLIENT_IDS:-}
+      EXTENSION_WORKSPACE_DOMAINS: ${EXTENSION_WORKSPACE_DOMAINS:-}
       DEV_EXTENSION_TOKEN: ${DEV_EXTENSION_TOKEN}
       # This compose stack is for local development. Select google explicitly for rollout.
       AUTH_MODE: ${AUTH_MODE:-development}
@@ -26,6 +29,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_WORKSPACE_DOMAINS: ${GOOGLE_WORKSPACE_DOMAINS:-}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
       CORS_ORIGINS: ${CORS_ORIGINS}
     ports:
       - "8000:8000"

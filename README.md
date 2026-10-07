@@ -1,7 +1,7 @@
-# Browser History Monitor — Milestone 5
+# Browser History Monitor — Collection controls
 
 This repository contains the centralized Chrome history system with routed
-Overview, Users, Domains and Reports pages:
+Overview, Users, Domains, Reports, Time Spent, Audit Log and Settings pages:
 
 - Chrome Manifest V3 extension
 - FastAPI REST API
@@ -22,9 +22,12 @@ The development Compose stack defaults to development mode for compatibility;
 Google mode and denies access until configured. A typo in `AUTH_MODE` prevents
 startup. Credentials from one mode cannot authenticate in the other.
 
-The extension still uses `DEV_EXTENSION_TOKEN` and reports an **unverified**
-profile email. Verified extension enrollment, retention and
-production deployment hardening remain future work.
+Extension authentication is configured independently. Development mode retains
+the shared token and unverified profile email. Enrolled mode uses Google-verified
+profile identity and individual expiring device credentials. See the
+[managed deployment guide](docs/managed-deployment.md) for Google Admin rollout,
+including its mandatory fresh-profile silent-authentication pilot. This is profile
+enrollment, not hardware attestation; production deployment hardening remains future work.
 
 ## Start the server
 
@@ -145,10 +148,10 @@ add Alembic migrations.
 ## Future work
 
 1. Additional investigator/auditor permission levels.
-2. Verified extension enrollment instead of a shared sync token.
+2. Hardware-backed enterprise device attestation.
 3. Roles: Administrator, Investigator, Auditor.
 4. External audit-log archival and tamper detection.
-5. Configurable retention.
+5. Audit-log retention and archival policies.
 6. Production Nginx configuration and HTTPS.
 7. Wire the included managed-extension policy schema into Chrome Enterprise deployment.
 
@@ -170,7 +173,8 @@ add Alembic migrations.
   top 20 domains, visits by day/hour, and CSV export of matching visit rows.
 - **Audit Log** (`/audit`): authenticated administrator activity with administrator,
   action and local date/time filters, request details and older-event pagination.
-- **Settings** is a disabled, clearly labeled placeholder.
+- **Time Spent** (`/time`): measured active time by page, domain and user.
+- **Settings** (`/settings`): retention, device health, weekly schedules and public-IP collection rules.
 
 Filters and pagination live in the URL, supporting direct links, reload and
 browser Back/Forward. Vite serves nested routes during development. A future
@@ -323,8 +327,8 @@ To add/remove administrators, edit `ADMIN_EMAILS` and recreate the backend with
 `docker compose up -d --force-recreate backend`. Authorization is checked on each
 API request; an already-open dashboard also revalidates on window focus and every
 five minutes. Domain or allowlist changes do not require code edits, frontend
-rebuilds or database migrations. Settings remains a placeholder; there is no
-in-app administrator editor in this milestone.
+rebuilds or database migrations. Administrator access remains environment-configured;
+the Settings page controls collection and retention, not administrator enrollment.
 
 The backend validates the signature, issuer, audience and expiry using Google's
 Python authentication library; it caches public signing certificates according
@@ -415,7 +419,7 @@ include the same breakdown within their selected local date range. Existing
 history CSV exports remain visit records; they do not invent per-visit durations.
 
 To enable collection, rebuild the backend/frontend (`docker compose up --build -d`)
-and reload or redeploy extension version **0.2.0**. The extension now requires
+and reload or redeploy extension version **0.3.0** (active time was introduced in 0.2.0). The extension now requires
 Chrome 120+ and the `tabs` and `idle` permissions. The backend creates the new
 `activity_intervals` table on startup; existing history remains intact. Collection
 starts with the updated extension: older visits cannot be backfilled with time.
@@ -441,11 +445,13 @@ to the original server, email, and device; changing configuration never reassign
 old samples to another user. Unsent samples for an old configuration remain local
 until that configuration is restored (and still count toward the queue limit).
 
-`POST /api/v1/sync/activity` uses the existing extension token and enrollment
-identity. It accepts up to 250 timestamped samples per batch, requires aware
+`POST /api/v1/sync/activity` uses the configured extension authentication mode:
+a bound device credential in enrolled mode, or the shared token in development
+mode. It accepts up to 250 timestamped samples per batch, requires aware
 UTC-compatible timestamps and positive intervals of at most 90 seconds, rejects
 overlapping intervals on one device, and acknowledges retries idempotently.
-The existing shared extension token does not verify the reported user's identity.
+Only enrolled mode verifies the Google identity and binds uploads to that user
+and device. The development token does not verify the reported user's identity.
 
 `GET /api/v1/activity/summary` requires administrator authentication and is
 recorded as `activity.view` in the audit log. Parameters: `group_by`
@@ -458,3 +464,157 @@ Validation includes PostgreSQL aggregation, clipping, user isolation, retries,
 overlap rejection and authentication, plus extension simulations for focus,
 idle, restart, offline retry and excluded pages. Run the extension checks with
 `node --test extension/tests/activity.test.cjs`.
+
+## Settings: retention, health and collection rules (extension 0.3.0)
+
+Rebuild with `docker compose up --build -d`, reload/redeploy the extension, and
+accept its additional `https://api64.ipify.org/*` host permission. Two new tables
+(`collection_settings`, `device_health`) are created on backend startup without
+changing existing history. No rules or deletion are enabled automatically:
+retention defaults to indefinite, schedule and IP restrictions default to off,
+the school timezone defaults to `America/Chicago`, and the stale check-in
+threshold defaults to 15 minutes. Existing administrator authentication is unchanged.
+
+The **Settings** page saves one deployment-wide policy shared by all users.
+Changes are revision checked to avoid overwriting another administrator's edit.
+The edit and its audit record (before/after policy, with no signing key) commit
+in one transaction. All currently allowed administrators can edit these settings.
+
+### Retention
+
+Set 1–3,650 days, or leave blank for indefinite storage. Saving a number enables
+**permanent deletion**, including already stored records older than that period.
+The backend runs cleanup at startup and every five minutes, deleting up to 10,000
+old history rows and 10,000 expired activity intervals per pass. Larger backlogs
+therefore take multiple passes. Intervals crossing the cutoff have their start
+clipped to it. Uploads older than the retention cutoff are filtered out so a
+retry/backfill cannot restore expired data. Users, devices, and audit records
+remain. The worker is part of the backend process; it resumes after downtime.
+Database failures are logged and retried on the next pass. Database backups and
+browser-local Chrome history are not deleted by this policy.
+
+### Weekly schedule
+
+Enable scheduling and choose a start/end for each day (Monday through Sunday).
+Unchecked days have no window starting on that day. An enabled schedule with no
+enabled days pauses all collection. An end earlier than its start means overnight:
+Friday 22:00–02:00 includes early Saturday even if Saturday has no own window.
+Equal start/end times are rejected. Start is inclusive; end is exclusive.
+Disable scheduling for unrestricted hours.
+
+Rules use the configured IANA school timezone and honor daylight saving changes,
+independent of the device's timezone. Repeated fall-back hours follow the same
+wall-clock rule; nonexistent spring-forward hours contain no instants to collect.
+Stored timestamps remain UTC; ordinary dashboard/report timestamps still use the
+administrator's local browser timezone.
+
+### Public-IP allowlist: public servers and LAN/localhost
+
+Enable the IP rule and enter individual public IPv4/IPv6 addresses, one per line.
+An empty enabled list blocks collection. Private/reserved addresses and CIDR
+ranges are rejected. The address is the school's public egress address, not a
+Chromebook's private Wi-Fi address. If a school uses multiple egress or IPv6
+addresses, list those as well. When schedule and IP rules are enabled, **both**
+must allow collection.
+
+Two explicitly selectable detection modes are available:
+
+- **Backend connection** (default): uses the request's TCP peer address. For a
+  trusted reverse proxy, set `TRUSTED_PROXY_CIDRS` to its exact addresses/networks
+  and configure that proxy to replace or safely append `X-Forwarded-For`. The
+  application walks the chain from the trusted end and stops at the first
+  untrusted address. Headers from untrusted peers are ignored. The Docker command
+  disables Uvicorn's own proxy-header rewriting; preserve `--no-proxy-headers`
+  when launching outside Docker so the application can validate the actual peer.
+  Do not trust all networks. A private Docker/LAN peer cannot match a public-IP
+  allowlist: use the device-lookup mode for that topology unless a correctly
+  configured trusted proxy conveys the real source address.
+- **Device lookup**: suitable when the backend is on localhost or the school LAN.
+  The extension requests `https://api64.ipify.org?format=json` over HTTPS, with no
+  browsing data, user identity or extension credentials attached, and sends the
+  returned address to the backend policy endpoint. This exposes the ordinary
+  connection IP to that third-party service. Lookup failure pauses collection.
+  This mode relies on the managed extension reporting honestly; it is not a
+  server-verified network-location guarantee. The [ipify API documentation](https://www.ipify.org/)
+  describes its dual-stack endpoint. IPv4/IPv6, VPN and split-routing choices can
+  produce different egress addresses for different destinations; use the observed
+  device address in Collection health when configuring the list.
+
+The extension still needs a host permission for its backend origin. For another
+school hostname or a LAN address, update `extension/manifest.json`'s backend
+`host_permissions` before deploying; changing API URL alone cannot grant access.
+No live school IPs are assumed or enabled by this change.
+
+### Enforcement, timing and backfill
+
+The extension checks policy before reading history or measuring time, and checks
+in normally every 30 seconds even while collection is paused. Successful policy
+checks can be cached for 20 seconds. When permitted, the server issues a signed
+permission valid for at most 45 seconds, shortened at schedule boundaries and
+bound to policy revision, user and device. Restricted uploads require this
+collection-time permission on each visit/interval. Their timestamps must lie
+within its bounds. A later approved network connection cannot authorize past
+unverified browsing. The backend independently filters noncompliant uploads,
+including uploads from older extension versions that ignore the policy.
+
+Network location is sampled, not continuously attested. A network switch may
+remain undetected until the next check; permissions last at most 45 seconds.
+Browser sleep/delayed alarms can delay checks, but cannot extend a permission.
+Keep device/server clocks synchronized; bad clocks can cause conservative drops.
+Development mode still uses a shared credential and unverified profile identity.
+Enrolled mode verifies the Google profile; neither mode provides tamper-proof
+device attestation.
+
+Restricted collection disables arbitrary initial/history backfill. Reconciliation
+only uses visits covered by recent permissions in the current browser session
+(up to 20 minutes retained locally). Policy/API failures pause new collection;
+already measured, permitted activity can retry later. Saving settings invalidates
+all earlier permissions; queued old-revision samples are acknowledged as filtered
+and discarded rather than retrying forever. Activity intervals crossing a permission
+boundary are clipped or conservatively skipped. No durations are inferred across
+missing samples. Unrestricted settings preserve the original historical backfill.
+
+Health check-ins contain enrollment identity, extension version, observed IP and
+collection status even outside collection hours. They contain no visited URLs or
+page titles. Collection health distinguishes ready, schedule-paused, IP-paused,
+unavailable public IP, stale check-in, and devices needing the updated extension.
+Ready is not proof of browsing; sleeping/closed browsers eventually look stale.
+Last sync means an acknowledged upload, which may contain only duplicates or
+filtered records. Refresh the dashboard to update health. Extension Options shows
+collection status, public IP, last policy check and sync errors.
+
+### Endpoints and verification
+
+- `GET /api/v1/settings`: current policy and revision (administrator; audited).
+- `POST /api/v1/settings`: validated complete policy plus expected revision
+  (administrator; atomic settings/audit write; 409 for a stale revision).
+- `GET /api/v1/settings/devices`: paginated health, with `q`, `offset`, `limit`
+  (administrator; audited).
+- `POST /api/v1/sync/policy`: enrollment metadata and optional `public_ip` in
+  device-lookup mode (extension credential); returns reason and collection permission.
+- Existing sync endpoints accept optional `collection_permit` per record and
+  return a `filtered` count when records are excluded.
+
+Automated backend tests exercise schedule boundaries/overnights/DST, IP modes and
+proxy spoofing, signed permission scope/tampering, both upload paths, retention
+and audit transaction behavior. Extension tests cover history gating and backfill,
+permission expiry, policy failure, lookup isolation, and activity retry behavior:
+`node --test extension/tests/*.test.cjs`.
+
+
+## Automatic managed enrollment (0.4.0)
+
+Extension 0.4.0 adds a non-interactive Google enrollment path, per-profile device
+credentials, renewal, and administrator revocation. Google Admin supplies the
+server URL and managed options; there are no enrollment codes to distribute.
+The backend adds `device_enrollments` automatically on startup. Local testing
+continues in development mode until explicitly configured otherwise.
+
+Start with [the managed deployment guide](docs/managed-deployment.md) and its
+[Google Admin policy example](docs/google-admin-policy.example.json). The package
+builder (`scripts/package_extension.py`) supports an initial store draft and a
+release with the publisher's real Chrome Extension OAuth client ID. A stable
+store ID and OAuth client have not yet been configured in this testing setup.
+Force-installation alone does not guarantee silent Google authorization; the
+fresh-profile pilot on all three platforms is a rollout gate, not an optional
+manual-enrollment step for users.

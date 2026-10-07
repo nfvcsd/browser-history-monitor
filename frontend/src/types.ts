@@ -71,7 +71,7 @@ export interface AuditEvent {
   actor_mode: string;
   action: string;
   status_code: number;
-  filters: Record<string, string | boolean>;
+  filters: Record<string, unknown>;
   result_count: number | null;
 }
 export interface AuditPage {

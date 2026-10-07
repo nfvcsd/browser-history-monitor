@@ -14,17 +14,30 @@
     "initialHistoryDays": {
       "title": "Initial history days",
       "description": "Number of days of existing Chrome history to import on enrollment.",
-      "type": "integer"
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 365
     },
     "reconciliationMinutes": {
       "title": "Reconciliation interval",
       "description": "Desired reconciliation interval in minutes.",
-      "type": "integer"
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60
     },
     "fallbackEmail": {
       "title": "Fallback email",
       "description": "Optional development fallback if Chrome profile identity is unavailable.",
       "type": "string"
+    },
+    "enrollmentMode": {
+      "title": "Enrollment mode",
+      "description": "Use enrolled for automatic Google-verified enrollment. Development mode is only for isolated testing.",
+      "type": "string",
+      "enum": [
+        "enrolled",
+        "development"
+      ]
     }
   }
 }

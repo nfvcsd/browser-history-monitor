@@ -1,0 +1,6 @@
+{
+  "apiUrl": {"Value": "https://history.your-school.example"},
+  "enrollmentMode": {"Value": "enrolled"},
+  "initialHistoryDays": {"Value": 7},
+  "reconciliationMinutes": {"Value": 5}
+}

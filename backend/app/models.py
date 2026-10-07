@@ -142,3 +142,33 @@ class ActivityInterval(Base):
     domain: Mapped[str] = mapped_column(String(512))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     ended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class CollectionSettings(Base):
+    __tablename__ = "collection_settings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    policy: Mapped[dict] = mapped_column(JSONB)
+    signing_key: Mapped[str] = mapped_column(String(128))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DeviceHealth(Base):
+    __tablename__ = "device_health"
+    device_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"), primary_key=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    reason: Mapped[str] = mapped_column(String(64))
+    source_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    policy_revision: Mapped[int] = mapped_column(Integer)
+
+
+class DeviceEnrollment(Base):
+    __tablename__ = "device_enrollments"
+    device_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"), primary_key=True)
+    google_subject: Mapped[str] = mapped_column(String(255), index=True)
+    hosted_domain: Mapped[str] = mapped_column(String(255))
+    credential_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    enrolled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

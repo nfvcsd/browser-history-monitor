@@ -1,12 +1,13 @@
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..auth import require_extension_token
+from ..collection import accepts, policy_record
+from ..auth import require_extension_token, enforce_device_identity
 from ..db import get_db
 from ..models import Device, HistoryVisit, User
 from ..schemas import SyncBatchIn, SyncBatchOut
@@ -26,7 +27,8 @@ def extract_domain(url: str) -> str:
     response_model=SyncBatchOut,
     dependencies=[Depends(require_extension_token)],
 )
-def sync_batch(payload: SyncBatchIn, db: Session = Depends(get_db)) -> SyncBatchOut:
+def sync_batch(payload: SyncBatchIn, request: Request, db: Session = Depends(get_db)) -> SyncBatchOut:
+    enforce_device_identity(request, payload)
     now = datetime.now(timezone.utc)
     email = str(payload.user_email).strip().lower()
 
@@ -66,6 +68,10 @@ def sync_batch(payload: SyncBatchIn, db: Session = Depends(get_db)) -> SyncBatch
         device.last_seen_at = now
         device.last_sync_at = now
 
+    record = policy_record(db)
+    original_count = len(payload.visits)
+    payload.visits = [item for item in payload.visits if accepts(record, payload, item, item.visit_time, now=now)]
+    filtered = original_count - len(payload.visits)
     accepted = 0
     duplicates = 0
 
@@ -144,6 +150,7 @@ def sync_batch(payload: SyncBatchIn, db: Session = Depends(get_db)) -> SyncBatch
                 duplicates += 1
 
     return SyncBatchOut(
+        filtered=filtered,
         accepted=accepted,
         duplicates=duplicates,
         user_id=user.id,

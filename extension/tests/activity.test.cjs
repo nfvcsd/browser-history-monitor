@@ -19,6 +19,9 @@ function setup() {
     set: async (values) => Object.assign(data, structuredClone(values)),
   });
   const context = {
+    CollectionPolicy: {
+      get: async () => ({ allowed: true, restricted: false, revision: 1 }),
+    },
     module: { exports: {} },
     crypto,
     TextEncoder,
@@ -49,6 +52,16 @@ function setup() {
         json: async () => ({ accepted: batch.intervals.length, duplicates: 0 }),
       };
     },
+  };
+  context.DeviceAuth = {
+    context: async () => ({
+      config: await context.getConfig(),
+      identity: await context.getIdentity(),
+      deviceKey: await context.getDeviceKey(),
+      headers: { "X-Extension-Token": "token" },
+      authKey: "token",
+    }),
+    rejected: async () => {},
   };
   vm.runInNewContext(
     fs.readFileSync(require.resolve("../activity-tracker.js"), "utf8"),
@@ -134,4 +147,44 @@ test("durable retry IDs, worker restart, incognito and forbidden pages", async (
   s.advance(30000);
   await s.tracker.sample();
   assert.equal(s.local.activityQueue.length, count);
+});
+
+test("restricted activity carries permission, clips expiry and drops blocked transitions", async () => {
+  const s = setup();
+  let permission = {
+    allowed: true,
+    restricted: true,
+    revision: 1,
+    permit: "signed",
+    valid_from: new Date(1000000).toISOString(),
+    valid_until: new Date(1020000).toISOString(),
+  };
+  s.context.CollectionPolicy.get = async () => permission;
+  await s.tracker.sample();
+  s.advance(30000);
+  await s.tracker.sample();
+  assert.equal(s.local.activityQueue.length, 1);
+  assert.equal(s.local.activityQueue[0].collection_permit, "signed");
+  assert.equal(
+    s.local.activityQueue[0].ended_at,
+    new Date(1020000).toISOString(),
+  );
+  permission = { allowed: false, restricted: true, revision: 1 };
+  s.advance(10000);
+  await s.tracker.sample(true);
+  assert.equal(s.local.activityQueue.length, 1);
+  assert.equal(s.local.activitySnapshot.page, null);
+  permission = {
+    allowed: true,
+    restricted: true,
+    revision: 2,
+    permit: "new",
+    valid_from: new Date(1040000).toISOString(),
+    valid_until: new Date(1080000).toISOString(),
+  };
+  await s.tracker.sample();
+  s.advance(10000);
+  await s.tracker.sample();
+  assert.equal(s.local.activityQueue.length, 2);
+  assert.equal(s.local.activityQueue[1].collection_permit, "new");
 });

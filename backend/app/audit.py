@@ -12,6 +12,8 @@ from .db import SessionLocal
 from .models import AuditEvent
 
 ACTIONS = {
+    "read_settings": "settings.view",
+    "collection_health": "devices.health",
     "activity_summary": "activity.view",
     "overview": "overview.view",
     "list_users": "users.list",
@@ -24,6 +26,8 @@ ACTIONS = {
     "audit_log": "audit.view",
 }
 FILTER_KEYS = {
+    "read_settings": set(),
+    "collection_health": {"q", "offset", "limit"},
     "activity_summary": {"group_by", "user_id", "domain", "q", "start", "end", "limit", "offset"},
     "overview": {"timezone"},
     "list_users": set(),

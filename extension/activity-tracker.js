@@ -34,13 +34,12 @@ const ActivityTracker = (() => {
     return work;
   }
   async function context() {
-    const config = await getConfig();
-    if (!config.extensionToken) return null;
-    const identity = await getIdentity(config);
-    const deviceKey = await getDeviceKey();
+    const auth = await DeviceAuth.context();
+    const { config, identity, deviceKey } = auth;
     const apiUrl = config.apiUrl.replace(/\/$/, "");
     return {
       config,
+      auth,
       email: identity.email.trim().toLowerCase(),
       deviceKey,
       apiUrl,
@@ -63,8 +62,13 @@ const ActivityTracker = (() => {
       const { activitySnapshot: previous, activityQueue = [] } =
         await chrome.storage.local.get(["activitySnapshot", "activityQueue"]);
       const ctx = await context();
+      const policy = await CollectionPolicy.get();
       let page = null;
-      if (ctx && (await chrome.idle.queryState(60)) === "active") {
+      if (
+        ctx &&
+        policy.allowed &&
+        (await chrome.idle.queryState(60)) === "active"
+      ) {
         const window = await chrome.windows
           .getLastFocused({ populate: true, windowTypes: ["normal"] })
           .catch(() => null);
@@ -84,17 +88,39 @@ const ActivityTracker = (() => {
         }
       }
       const next = {
-        at: now,
+        at: Date.now(),
         page,
         scope: ctx?.scope,
         session: activitySession,
+        policy,
       };
-      const entry =
+      let entry =
         reset ||
         previous?.session !== activitySession ||
         previous?.scope !== ctx?.scope
           ? null
           : interval(previous, next, now, transition);
+      if (entry) {
+        const permission = previous.policy;
+        if (
+          !policy.allowed ||
+          !permission?.allowed ||
+          permission.revision !== policy.revision
+        ) {
+          entry = null;
+        } else if (permission.restricted) {
+          const end = Math.min(now, Date.parse(permission.valid_until));
+          if (
+            previous.at < Date.parse(permission.valid_from) ||
+            end <= previous.at
+          )
+            entry = null;
+          else {
+            entry.ended_at = new Date(end).toISOString();
+            entry.collection_permit = permission.permit;
+          }
+        }
+      }
       if (entry) {
         if (
           activityQueue.length >= MAX_QUEUE ||
@@ -133,7 +159,7 @@ const ActivityTracker = (() => {
         signal: AbortSignal.timeout(15000),
         headers: {
           "Content-Type": "application/json",
-          "X-Extension-Token": ctx.config.extensionToken,
+          ...ctx.auth.headers,
         },
         body: JSON.stringify({
           user_email: ctx.email,
@@ -143,10 +169,15 @@ const ActivityTracker = (() => {
           intervals: batch.map(({ scope, ...item }) => item),
         }),
       });
-      if (!response.ok)
+      if (!response.ok) {
+        await DeviceAuth.rejected(response, ctx.auth);
         throw new Error(`Activity sync failed: ${response.status}`);
+      }
       const result = await response.json();
-      if (result.accepted + result.duplicates !== batch.length)
+      if (
+        result.accepted + result.duplicates + (result.filtered || 0) !==
+        batch.length
+      )
         throw new Error("Unexpected activity acknowledgement");
       const ids = new Set(batch.map((item) => item.sample_id));
       await enqueue(async () => {

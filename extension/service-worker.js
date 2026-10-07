@@ -1,5 +1,6 @@
-importScripts("activity-tracker.js");
+importScripts("device-auth.js", "collection-policy.js", "activity-tracker.js");
 const DEFAULTS = {
+  enrollmentMode: "development",
   apiUrl: "http://localhost:8000",
   extensionToken: "",
   initialHistoryDays: 7,
@@ -11,14 +12,40 @@ const BATCH_SIZE = 250;
 const RECONCILE_LOOKBACK_MINUTES = 10;
 
 async function getConfig() {
-  const managed = await chrome.storage.managed.get(null).catch(() => ({}));
+  const managed = await chrome.storage.managed.get(null);
   const local = await chrome.storage.local.get(DEFAULTS);
+  const { managedEnrollmentSeen } = await chrome.storage.local.get(
+    "managedEnrollmentSeen",
+  );
+  const mode =
+    managed.enrollmentMode ||
+    (managed.apiUrl ? "enrolled" : local.enrollmentMode);
+  if (mode === "enrolled") {
+    if (!managed.apiUrl)
+      throw new Error("Waiting for Google Admin managed configuration");
+    await chrome.storage.local.set({ managedEnrollmentSeen: true });
+    return {
+      ...DEFAULTS,
+      ...managed,
+      enrollmentMode: "enrolled",
+      extensionToken: "",
+      fallbackEmail: "",
+    };
+  }
+  if (managedEnrollmentSeen && managed.enrollmentMode !== "development")
+    throw new Error(
+      "Managed enrollment configuration was removed; collection paused",
+    );
   return { ...DEFAULTS, ...local, ...managed };
 }
 
 let deviceKeyPromise;
 function getDeviceKey() {
-  if (!deviceKeyPromise) deviceKeyPromise = createDeviceKey().catch(error => { deviceKeyPromise = undefined; throw error; });
+  if (!deviceKeyPromise)
+    deviceKeyPromise = createDeviceKey().catch((error) => {
+      deviceKeyPromise = undefined;
+      throw error;
+    });
   return deviceKeyPromise;
 }
 async function createDeviceKey() {
@@ -32,7 +59,9 @@ async function createDeviceKey() {
 
 async function getIdentity(config) {
   try {
-    const profile = await chrome.identity.getProfileUserInfo({ accountStatus: "ANY" });
+    const profile = await chrome.identity.getProfileUserInfo({
+      accountStatus: "ANY",
+    });
     if (profile?.email) {
       return { email: profile.email, displayName: null };
     }
@@ -45,20 +74,15 @@ async function getIdentity(config) {
   }
 
   throw new Error(
-    "No Chrome profile email is available. Configure a fallback email in extension options."
+    "No Chrome profile email is available. Configure a fallback email in extension options.",
   );
 }
 
 async function postBatch(visits) {
   if (!visits.length) return;
 
-  const config = await getConfig();
-  if (!config.extensionToken) {
-    throw new Error("Extension token is not configured.");
-  }
-
-  const identity = await getIdentity(config);
-  const deviceKey = await getDeviceKey();
+  const ctx = await DeviceAuth.context();
+  const { config, identity, deviceKey } = ctx;
 
   const response = await fetch(
     `${config.apiUrl.replace(/\/$/, "")}/api/v1/sync/batch`,
@@ -66,7 +90,7 @@ async function postBatch(visits) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Extension-Token": config.extensionToken,
+        ...ctx.headers,
       },
       body: JSON.stringify({
         user_email: identity.email,
@@ -76,10 +100,11 @@ async function postBatch(visits) {
         extension_version: chrome.runtime.getManifest().version,
         visits,
       }),
-    }
+    },
   );
 
   if (!response.ok) {
+    await DeviceAuth.rejected(response, ctx);
     const text = await response.text();
     throw new Error(`Sync failed: ${response.status} ${text}`);
   }
@@ -109,9 +134,13 @@ function toPayload(historyItem, visit) {
     transition: visit.transition ?? null,
     is_local: typeof visit.isLocal === "boolean" ? visit.isLocal : null,
     visit_count:
-      typeof historyItem.visitCount === "number" ? historyItem.visitCount : null,
+      typeof historyItem.visitCount === "number"
+        ? historyItem.visitCount
+        : null,
     typed_count:
-      typeof historyItem.typedCount === "number" ? historyItem.typedCount : null,
+      typeof historyItem.typedCount === "number"
+        ? historyItem.typedCount
+        : null,
   };
 }
 
@@ -129,6 +158,23 @@ async function sendInChunks(visits) {
 }
 
 async function collectRange(startTime, endTime = Date.now()) {
+  const policy = await CollectionPolicy.get();
+  if (!policy.allowed) {
+    if (policy.reason === "policy_unavailable")
+      throw new Error(
+        "Collection policy unavailable; history collection paused.",
+      );
+    return [];
+  }
+  const permits = await CollectionPolicy.permits(policy);
+  if (policy.restricted) {
+    if (!permits.length) return [];
+    startTime = Math.max(
+      startTime,
+      Math.min(...permits.map((item) => Date.parse(item.valid_from))),
+    );
+    if (startTime > endTime) return [];
+  }
   const items = await chrome.history.search({
     text: "",
     startTime,
@@ -146,8 +192,11 @@ async function collectRange(startTime, endTime = Date.now()) {
       if (!visit.visitTime) continue;
       if (visit.visitTime < startTime || visit.visitTime > endTime) continue;
 
+      const permit = CollectionPolicy.forTime(permits, visit.visitTime);
+      if (policy.restricted && !permit) continue;
       const payload = toPayload(item, visit);
-      if (payload) collected.push(payload);
+      if (payload)
+        collected.push({ ...payload, collection_permit: permit?.permit });
     }
   }
 
@@ -195,6 +244,9 @@ async function syncVisitedItem(historyItem) {
   if (!historyItem?.url) return;
 
   try {
+    const policy = await CollectionPolicy.get();
+    if (!policy.allowed) return;
+    const permits = await CollectionPolicy.permits(policy);
     const visits = await chrome.history.getVisits({ url: historyItem.url });
     const newest = visits
       .filter((visit) => visit.visitTime)
@@ -203,19 +255,37 @@ async function syncVisitedItem(historyItem) {
     if (!newest) return;
 
     const payload = toPayload(historyItem, newest);
-    if (payload) await postBatch([payload]);
+    const permit = CollectionPolicy.forTime(permits, newest.visitTime);
+    if (policy.restricted && !permit) return;
+    if (payload)
+      await postBatch([{ ...payload, collection_permit: permit?.permit }]);
   } catch (error) {
-    console.warn("Immediate visit sync failed; reconciliation will retry it.", error);
+    console.warn(
+      "Immediate visit sync failed; reconciliation will retry it.",
+      error,
+    );
   }
 }
 
+async function configureReconciliation() {
+  const config = await getConfig();
+  const minutes = Number(config.reconciliationMinutes);
+  await chrome.alarms.create("history-reconcile", {
+    periodInMinutes:
+      Number.isInteger(minutes) && minutes >= 1 && minutes <= 60 ? minutes : 5,
+  });
+}
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.alarms.create("history-reconcile", { periodInMinutes: 5 });
+  void configureReconciliation().catch((error) =>
+    chrome.storage.local.set({ enrollmentStatus: error.message }),
+  );
   void initialSync();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  chrome.alarms.create("history-reconcile", { periodInMinutes: 5 });
+  void configureReconciliation().catch((error) =>
+    chrome.storage.local.set({ enrollmentStatus: error.message }),
+  );
   void reconcile(30);
 });
 
@@ -234,7 +304,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     reconcile(5)
       .then((result) => sendResponse({ ok: true, result }))
       .catch((error) =>
-        sendResponse({ ok: false, error: String(error?.message ?? error) })
+        sendResponse({ ok: false, error: String(error?.message ?? error) }),
       );
     return true;
   }
@@ -243,10 +313,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     initialSync()
       .then(() => sendResponse({ ok: true }))
       .catch((error) =>
-        sendResponse({ ok: false, error: String(error?.message ?? error) })
+        sendResponse({ ok: false, error: String(error?.message ?? error) }),
       );
     return true;
   }
 });
 
 ActivityTracker.install();
+
+self.addEventListener("online", () => CollectionPolicy.invalidate());
+self.addEventListener("offline", () => CollectionPolicy.invalidate());
+
+chrome.identity.onSignInChanged.addListener(() => {
+  DeviceAuth.invalidate();
+  CollectionPolicy.invalidate();
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "managed")
+    void configureReconciliation().catch((error) =>
+      chrome.storage.local.set({ enrollmentStatus: error.message }),
+    );
+  if (
+    area === "managed" ||
+    (area === "local" &&
+      ["apiUrl", "extensionToken", "fallbackEmail", "enrollmentMode"].some(
+        (key) => key in changes,
+      ))
+  ) {
+    DeviceAuth.invalidate();
+    CollectionPolicy.invalidate();
+  }
+});
+
+void chrome.storage.local.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" });

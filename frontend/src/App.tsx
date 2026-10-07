@@ -1,3 +1,4 @@
+import SettingsPage from "./SettingsPage";
 import { FormEvent, useEffect, useState } from "react";
 import {
   BrowserRouter,
@@ -519,12 +520,7 @@ function Console({
           <NavLink to="/reports">Reports</NavLink>
           <NavLink to="/time">Time Spent</NavLink>
           <NavLink to="/audit">Audit Log</NavLink>
-          {["Settings"].map((label) => (
-            <button disabled key={label}>
-              {label}
-              <small>Not yet implemented</small>
-            </button>
-          ))}
+          <NavLink to="/settings">Settings</NavLink>
         </nav>
         <p className="signed-in-user">
           {identity.email || "Development administrator"}
@@ -553,6 +549,7 @@ function Console({
           <Route path="/domains" element={<DomainsPage {...props} />} />
           <Route path="/reports" element={<ReportsPage {...props} />} />
           <Route path="/time" element={<TimeSpentPage {...props} />} />
+          <Route path="/settings" element={<SettingsPage {...props} />} />
           <Route path="/audit" element={<AuditLogPage {...props} />} />
           <Route
             path="/domains/:domain"

@@ -5,12 +5,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str
-    dev_extension_token: str
+    extension_auth_mode: Literal["development", "enrolled"] = "enrolled"
+    extension_google_client_ids: str = ""
+    extension_workspace_domains: str = ""
+    dev_extension_token: str = ""
     dev_admin_token: str = ""
     auth_mode: Literal["development", "google"] = "google"
     google_client_id: str = ""
     google_workspace_domains: str = ""
     admin_emails: str = ""
+    trusted_proxy_cidrs: str = ""
     cors_origins: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

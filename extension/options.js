@@ -12,6 +12,7 @@ const fields = {
   fallbackEmail: document.getElementById("fallbackEmail"),
 };
 
+let managedEnrollment = false;
 const statusEl = document.getElementById("status");
 
 async function load() {
@@ -20,7 +21,16 @@ async function load() {
     input.value = config[key] ?? DEFAULTS[key];
   }
 
-  const managed = await chrome.storage.managed.get(null).catch(() => ({}));
+  const managed = await chrome.storage.managed.get(null);
+  managedEnrollment =
+    managed.enrollmentMode === "enrolled" ||
+    (!!managed.apiUrl && !managed.enrollmentMode);
+  if (managedEnrollment) {
+    for (const input of Object.values(fields)) input.disabled = true;
+    document.getElementById("save").disabled = true;
+    document.getElementById("mode").textContent =
+      "Managed deployment: enrollment and configuration are automatic. Contact your administrator to change these settings.";
+  }
   for (const [key, value] of Object.entries(managed)) {
     if (fields[key] && value !== undefined) {
       fields[key].value = value;
@@ -35,12 +45,20 @@ async function load() {
     "initialSyncCompleted",
     "lastActivitySync",
     "lastActivityError",
+    "collectionStatus",
+    "collectionPublicIp",
+    "lastPolicyCheck",
+    "lastPolicyError",
+    "enrollmentStatus",
+    "enrollmentEmail",
+    "enrollmentExpiresAt",
   ]);
 
   statusEl.textContent = JSON.stringify(state, null, 2);
 }
 
 async function save() {
+  if (managedEnrollment) return;
   await chrome.storage.local.set({
     apiUrl: fields.apiUrl.value.trim(),
     extensionToken: fields.extensionToken.value.trim(),
@@ -68,4 +86,8 @@ document.getElementById("initial").addEventListener("click", async () => {
   statusEl.textContent = JSON.stringify(result, null, 2);
 });
 
-void load();
+void load().catch((error) => {
+  statusEl.textContent = "Cannot read managed settings: " + error.message;
+  for (const input of Object.values(fields)) input.disabled = true;
+  document.getElementById("save").disabled = true;
+});

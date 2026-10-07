@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Managed Browser History Agent",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Synchronizes managed history and estimates active foreground browsing time.",
   "minimum_chrome_version": "120",
   "permissions": [
@@ -15,7 +15,8 @@
   ],
   "host_permissions": [
     "http://localhost:8000/*",
-    "https://history.nfv.k12.ia.us/*"
+    "https://history.nfv.k12.ia.us/*",
+    "https://api64.ipify.org/*"
   ],
   "background": {
     "service_worker": "service-worker.js"

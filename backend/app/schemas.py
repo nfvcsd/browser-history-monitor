@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
 
 class VisitIn(BaseModel):
+    collection_permit: str | None = Field(default=None, max_length=2048)
     chrome_visit_id: str = Field(min_length=1, max_length=128)
     chrome_history_id: str | None = Field(default=None, max_length=128)
     referring_visit_id: str | None = Field(default=None, max_length=128)
@@ -27,6 +28,7 @@ class SyncBatchIn(BaseModel):
 
 
 class SyncBatchOut(BaseModel):
+    filtered: int = 0
     accepted: int
     duplicates: int
     user_id: uuid.UUID
@@ -128,7 +130,7 @@ class AuditEventOut(BaseModel):
     actor_mode: str
     action: str
     status_code: int
-    filters: dict[str, str | bool]
+    filters: dict[str, object]
     result_count: int | None
 
 
