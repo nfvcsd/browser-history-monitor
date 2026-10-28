@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ExtensionSettings</key>
+	<dict>
+		<key>aekomeheakpbnjbkokddheginepaojdn</key>
+		<dict>
+			<key>installation_mode</key>
+			<string>force_installed</string>
+			<key>override_update_url</key>
+			<true/>
+			<key>update_url</key>
+			<string>https://nfvcsd.github.io/browser-history-monitor/updates.xml</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

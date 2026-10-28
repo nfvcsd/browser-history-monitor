@@ -1,0 +1,65 @@
+name: Signed extension release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: extension-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    environment: extension-release
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test extension and packaging
+        run: |
+          node --test extension/tests/*.test.cjs
+          python3 -m unittest discover -s scripts/tests -v
+      - name: Build with existing signing key
+        env:
+          CRX_PRIVATE_KEY_B64: ${{ secrets.CRX_PRIVATE_KEY_B64 }}
+          EXPECTED_EXTENSION_ID: ${{ vars.EXTENSION_ID }}
+          OAUTH_CLIENT_ID: ${{ vars.EXTENSION_OAUTH_CLIENT_ID }}
+          API_ORIGIN: ${{ vars.EXTENSION_API_ORIGIN }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_EXTENSION_ID"
+          test -n "$OAUTH_CLIENT_ID"
+          test -n "$API_ORIGIN"
+          test -n "$CRX_PRIVATE_KEY_B64"
+          umask 077
+          key_file="$RUNNER_TEMP/history-signing.pem"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s' "$CRX_PRIVATE_KEY_B64" | base64 --decode > "$key_file"
+          python3 scripts/build_self_hosted.py --chrome "$(command -v google-chrome)" --key "$key_file" --repository "$REPOSITORY" --expected-id "$EXPECTED_EXTENSION_ID" --oauth-client-id "$OAUTH_CLIENT_ID" --api-origin "$API_ORIGIN"
+      - name: Publish versioned package before advertising update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import json; print(json.load(open("extension/manifest.json"))["version"])')"
+          gh release create "extension-v$version" dist/self-hosted/browser-history-agent.crx dist/self-hosted/SHA256SUMS dist/self-hosted/extension-id.txt --target "$GITHUB_SHA" --title "Browser History Agent $version" --notes "Managed extension release. See docs/github-deployment.md for configuration and pilot checks."
+      - name: Verify anonymous download
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import json; print(json.load(open("extension/manifest.json"))["version"])')"
+          curl --fail --location --proto '=https' --proto-redir '=https' --retry 5 --retry-all-errors "https://github.com/$REPOSITORY/releases/download/extension-v$version/browser-history-agent.crx" -o "$RUNNER_TEMP/download.crx"
+          cmp dist/self-hosted/browser-history-agent.crx "$RUNNER_TEMP/download.crx"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/self-hosted/pages
+      - uses: actions/deploy-pages@v4

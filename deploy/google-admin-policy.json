@@ -1,0 +1,14 @@
+{
+  "apiUrl": {
+    "Value": "https://history.nfv.k12.ia.us"
+  },
+  "enrollmentMode": {
+    "Value": "enrolled"
+  },
+  "initialHistoryDays": {
+    "Value": 7
+  },
+  "reconciliationMinutes": {
+    "Value": 5
+  }
+}

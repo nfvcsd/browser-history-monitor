@@ -21,6 +21,14 @@ No real OAuth client, Web Store listing, school credentials or Admin Console
 configuration was created by the code change. Google verification is simulated in
 automated tests; real tenant/platform behavior still requires the pilot below.
 
+## Distribution choice
+
+For GitHub-hosted CRX releases instead of Web Store distribution, follow
+[GitHub deployment](github-deployment.md). Obtain the extension ID from your own
+signing key, then configure the OAuth client for that ID. The enrollment, backend,
+and pilot requirements below still apply. The Web Store steps in section 1 and
+store-based force-install choice in section 3 are only for Web Store distribution.
+
 ## 1. One-time publisher setup, starting from an unpacked test extension
 
 1. Prepare the backend behind HTTPS, reachable by the managed devices. The existing

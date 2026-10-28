@@ -618,3 +618,10 @@ store ID and OAuth client have not yet been configured in this testing setup.
 Force-installation alone does not guarantee silent Google authorization; the
 fresh-profile pilot on all three platforms is a rollout gate, not an optional
 manual-enrollment step for users.
+
+## GitHub-hosted extension releases
+
+For the same GitHub Actions + Releases + Pages deployment model as the Eaglercraft
+blocker, use [GitHub deployment](docs/github-deployment.md). This provides signed
+CRX3 packages and a stable update feed for managed force installation without a
+Web Store listing. Backend hosting and verified Google enrollment are still required.

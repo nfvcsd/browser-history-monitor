@@ -6,3 +6,12 @@ __pycache__/
 *.pyc
 *.tsbuildinfo
 .venv/
+
+# Extension signing material must never be committed.
+*.pem
+*.key
+*.p12
+
+# Local Finder metadata and screenshots containing real dashboard data.
+.DS_Store
+assets/store-screenshot*
