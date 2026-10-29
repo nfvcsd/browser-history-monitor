@@ -22,7 +22,7 @@ async function request<T>(
   signal?: AbortSignal,
   body?: unknown,
 ): Promise<T> {
-  const url = new URL(`${API_BASE}${path}`);
+  const url = new URL(`${API_BASE}${path}`, window.location.origin);
   if (params) {
     params.forEach((value, key) => url.searchParams.set(key, value));
   }

@@ -1,0 +1,28 @@
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    # Only the existing TLS proxy may reach this internal HTTP listener.
+    allow ${REVERSE_PROXY_IP};
+    allow 127.0.0.1;
+    deny all;
+    client_max_body_size 10m;
+    access_log off;
+    add_header X-Content-Type-Options nosniff always;
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $api http://backend:8000;
+    location /api/ {
+        proxy_pass $api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+    }
+    location = /health {
+        proxy_pass $api;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache";
+    }
+}

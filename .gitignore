@@ -15,3 +15,5 @@ __pycache__/
 # Local Finder metadata and screenshots containing real dashboard data.
 .DS_Store
 assets/store-screenshot*
+.env.production
+backups/

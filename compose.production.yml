@@ -1,0 +1,76 @@
+# Standalone production file; do not combine with the development Compose file.
+name: history-production
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_DB: browser_history
+      POSTGRES_USER: browser_history
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+    volumes:
+      - history-postgres:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U browser_history -d browser_history"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      DATABASE_URL: postgresql+psycopg://browser_history:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/browser_history
+      AUTH_MODE: google
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set dashboard Web application OAuth client ID}
+      GOOGLE_WORKSPACE_DOMAINS: ${GOOGLE_WORKSPACE_DOMAINS:-nfv.k12.ia.us}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:?Set ADMIN_EMAILS}
+      EXTENSION_AUTH_MODE: enrolled
+      EXTENSION_GOOGLE_CLIENT_IDS: ${EXTENSION_GOOGLE_CLIENT_IDS:?Set extension OAuth client ID}
+      EXTENSION_WORKSPACE_DOMAINS: ${EXTENSION_WORKSPACE_DOMAINS:-nfv.k12.ia.us}
+      CORS_ORIGINS: https://history.nfv.k12.ia.us
+      TRUSTED_PROXY_CIDRS: 172.30.32.2/32,${REVERSE_PROXY_IP:-10.140.1.2}/32
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      database: {}
+      web:
+        ipv4_address: 172.30.32.3
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      REVERSE_PROXY_IP: ${REVERSE_PROXY_IP:-10.140.1.2}
+    ports:
+      - "${LISTEN_IP:-10.140.1.32}:${HTTP_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      web:
+        ipv4_address: 172.30.32.2
+volumes:
+  history-postgres:
+networks:
+  database:
+    internal: true
+  web:
+    ipam:
+      config:
+        - subnet: 172.30.32.0/24

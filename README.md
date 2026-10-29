@@ -625,3 +625,10 @@ For the same GitHub Actions + Releases + Pages deployment model as the Eaglercra
 blocker, use [GitHub deployment](docs/github-deployment.md). This provides signed
 CRX3 packages and a stable update feed for managed force installation without a
 Web Store listing. Backend hosting and verified Google enrollment are still required.
+
+## Ubuntu production VM
+
+Use the standalone [production deployment guide](deploy/linux/README.md) and
+`compose.production.yml` for the Ubuntu VM behind the existing HTTPS reverse proxy.
+This serves a built dashboard, keeps PostgreSQL and the API off host ports, and
+requires Google admin sign-in and verified extension enrollment.
